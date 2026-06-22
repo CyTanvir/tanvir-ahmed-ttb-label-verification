@@ -22,7 +22,6 @@
         --warning-soft: #fff2d7;
         --danger: #b42318;
         --danger-soft: #fdecea;
-        --ink-panel: #101820;
       }
 
       * {
@@ -265,8 +264,7 @@
       }
 
       .placeholder-panel,
-      .error-panel,
-      .verdict-panel {
+      .error-panel {
         padding: 24px;
       }
 
@@ -278,8 +276,7 @@
       }
 
       .placeholder-panel p,
-      .error-panel p,
-      .verdict-panel p {
+      .error-panel p {
         margin: 0;
         font-size: 1.1rem;
         line-height: 1.45;
@@ -296,8 +293,7 @@
         display: block;
       }
 
-      .error-panel h2,
-      .verdict-panel h2 {
+      .error-panel h2 {
         margin: 0 0 8px;
         font-size: 1.55rem;
         line-height: 1.2;
@@ -317,43 +313,154 @@
         word-break: break-word;
       }
 
-      .verdict-panel {
+      .progress-panel,
+      .summary-panel {
         display: none;
+        padding: 24px;
       }
 
-      .verdict-panel.visible {
+      .progress-panel.visible,
+      .summary-panel.visible {
         display: block;
       }
 
-      .verdict-panel.approved {
-        border-color: #a5d6bd;
-        background: var(--success-soft);
-      }
-
-      .verdict-panel.review {
-        border-color: #f2cf8a;
-        background: var(--warning-soft);
-      }
-
-      .verdict-heading {
+      .progress-topline,
+      .summary-heading,
+      .batch-topline {
         display: flex;
         flex-wrap: wrap;
         align-items: center;
+        justify-content: space-between;
         gap: 12px;
-        margin-bottom: 8px;
       }
 
-      .verdict-badge {
-        display: inline-flex;
-        align-items: center;
-        min-height: 38px;
-        border-radius: 8px;
-        padding: 6px 12px;
-        background: var(--ink-panel);
-        color: #fff;
-        font-size: 1rem;
-        font-weight: 800;
+      .progress-topline h2,
+      .summary-heading h2 {
+        margin: 0;
+        font-size: 1.55rem;
+        line-height: 1.2;
         letter-spacing: 0;
+      }
+
+      .progress-count,
+      .batch-latency {
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .progress-meter {
+        height: 18px;
+        overflow: hidden;
+        margin-top: 18px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .progress-fill {
+        width: 0%;
+        height: 100%;
+        background: var(--primary);
+        transition: width 220ms ease;
+      }
+
+      .summary-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .summary-stat {
+        min-width: 0;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        padding: 14px;
+      }
+
+      .summary-stat strong {
+        display: block;
+        color: var(--text);
+        font-size: 2rem;
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      .summary-stat span {
+        display: block;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0;
+      }
+
+      .batch-label {
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .batch-label[open] {
+        box-shadow: 0 10px 28px rgb(16 24 32 / 8%);
+      }
+
+      .batch-label.error {
+        border-color: #f1a7a0;
+      }
+
+      .batch-label.needs_review {
+        border-color: #f2cf8a;
+      }
+
+      .batch-summary-row {
+        min-height: 68px;
+        padding: 16px;
+        cursor: pointer;
+        list-style: none;
+      }
+
+      .batch-summary-row::-webkit-details-marker {
+        display: none;
+      }
+
+      .batch-name {
+        min-width: 0;
+        margin: 0;
+        font-size: 1.2rem;
+        line-height: 1.25;
+        letter-spacing: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .batch-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+      }
+
+      .batch-body {
+        display: grid;
+        gap: 12px;
+        border-top: 1px solid var(--border);
+        padding: 16px;
+        background: #fbfcfd;
+      }
+
+      .batch-error {
+        margin: 0;
+        border-radius: 8px;
+        background: var(--danger-soft);
+        color: #7a1b12;
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
       }
 
       .result-list {
@@ -473,13 +580,19 @@
         .form-panel,
         .placeholder-panel,
         .error-panel,
-        .verdict-panel {
+        .progress-panel,
+        .summary-panel {
           padding: 18px;
         }
 
         .fields-grid,
-        .result-values {
+        .result-values,
+        .summary-grid {
           grid-template-columns: 1fr;
+        }
+
+        .batch-meta {
+          justify-content: flex-start;
         }
 
         .verify-button,
@@ -502,17 +615,18 @@
       <div class="workflow">
         <form id="verify-form" class="panel form-panel">
           <section aria-labelledby="label-image-title">
-            <h2 id="label-image-title" class="section-title">Label Image</h2>
+            <h2 id="label-image-title" class="section-title">Label Images</h2>
             <label class="file-picker" for="label-image">
-              <span class="file-title">Choose image</span>
+              <span class="file-title">Choose images</span>
               <input
                 id="label-image"
-                name="label_image"
+                name="label_images"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                multiple
                 required
               />
-              <span id="file-name" class="file-name">No image selected</span>
+              <span id="file-name" class="file-name">No images selected</span>
               <span id="preview-wrap" class="preview-wrap" aria-hidden="true">
                 <img id="image-preview" alt="" />
               </span>
@@ -565,7 +679,7 @@
           </section>
 
           <div class="actions">
-            <button id="verify-button" class="verify-button" type="submit">Verify Label</button>
+            <button id="verify-button" class="verify-button" type="submit">Verify Labels</button>
             <button id="clear-button" class="secondary-button" type="button">Clear Results</button>
           </div>
         </form>
@@ -577,12 +691,46 @@
             <pre id="error-detail" class="error-detail"></pre>
           </div>
 
-          <div id="verdict-panel" class="panel verdict-panel">
-            <div class="verdict-heading">
-              <h2 id="verdict-title">Verdict</h2>
-              <span id="verdict-badge" class="verdict-badge">Waiting</span>
+          <div id="progress-panel" class="panel progress-panel">
+            <div class="progress-topline">
+              <h2 id="progress-title">Verifying labels</h2>
+              <span id="progress-count" class="progress-count">0%</span>
             </div>
-            <p id="latency-text"></p>
+            <div
+              id="progress-meter"
+              class="progress-meter"
+              role="progressbar"
+              aria-valuemin="0"
+              aria-valuemax="100"
+              aria-valuenow="0"
+            >
+              <div id="progress-fill" class="progress-fill"></div>
+            </div>
+          </div>
+
+          <div id="summary-panel" class="panel summary-panel">
+            <div class="summary-heading">
+              <h2>Batch Summary</h2>
+              <span id="batch-latency" class="batch-latency"></span>
+            </div>
+            <div class="summary-grid">
+              <div class="summary-stat">
+                <strong id="summary-total">0</strong>
+                <span>Total</span>
+              </div>
+              <div class="summary-stat">
+                <strong id="summary-approved">0</strong>
+                <span>Approved</span>
+              </div>
+              <div class="summary-stat">
+                <strong id="summary-review">0</strong>
+                <span>Needs Review</span>
+              </div>
+              <div class="summary-stat">
+                <strong id="summary-errors">0</strong>
+                <span>Errors</span>
+              </div>
+            </div>
           </div>
 
           <div id="results-list" class="result-list"></div>
@@ -595,8 +743,9 @@
     </main>
 
     <script>
-      const VERIFY_ENDPOINT = "/verify";
-      const VERIFY_TIMEOUT_MS = 5000;
+      const BATCH_VERIFY_ENDPOINT = "/verify/batch";
+      const BATCH_VERIFY_TIMEOUT_MS = 15000;
+      const MAX_BATCH_FILES = 10;
 
       const FIELD_DEFINITIONS = [
         { key: "brand_name", label: "Brand name", elementId: "brand-name" },
@@ -628,14 +777,23 @@
       const errorPanel = document.querySelector("#error-panel");
       const errorSummary = document.querySelector("#error-summary");
       const errorDetail = document.querySelector("#error-detail");
-      const verdictPanel = document.querySelector("#verdict-panel");
-      const verdictTitle = document.querySelector("#verdict-title");
-      const verdictBadge = document.querySelector("#verdict-badge");
-      const latencyText = document.querySelector("#latency-text");
+      const progressPanel = document.querySelector("#progress-panel");
+      const progressTitle = document.querySelector("#progress-title");
+      const progressCount = document.querySelector("#progress-count");
+      const progressMeter = document.querySelector("#progress-meter");
+      const progressFill = document.querySelector("#progress-fill");
+      const summaryPanel = document.querySelector("#summary-panel");
+      const batchLatency = document.querySelector("#batch-latency");
+      const summaryTotal = document.querySelector("#summary-total");
+      const summaryApproved = document.querySelector("#summary-approved");
+      const summaryReview = document.querySelector("#summary-review");
+      const summaryErrors = document.querySelector("#summary-errors");
       const resultsList = document.querySelector("#results-list");
       const placeholderPanel = document.querySelector("#placeholder-panel");
 
       let previewUrl = "";
+      let progressTimer = 0;
+      let progressValue = 0;
 
       function setStatus(kind, text) {
         statusDot.className = `status-dot ${kind}`;
@@ -650,10 +808,16 @@
         }, {});
       }
 
-      function buildVerifyPayload(file) {
+      function selectedFiles() {
+        return Array.from(labelImage.files || []);
+      }
+
+      function buildBatchVerifyPayload(files) {
         const payload = new FormData();
         payload.append("application_data", JSON.stringify(collectApplicationData()));
-        payload.append("label_image", file, file.name);
+        for (const file of files) {
+          payload.append("label_images", file, file.name);
+        }
         return payload;
       }
 
@@ -665,10 +829,13 @@
 
       function clearResults() {
         clearError();
-        verdictPanel.className = "panel verdict-panel";
-        verdictTitle.textContent = "Verdict";
-        verdictBadge.textContent = "Waiting";
-        latencyText.textContent = "";
+        hideProgress();
+        summaryPanel.classList.remove("visible");
+        batchLatency.textContent = "";
+        summaryTotal.textContent = "0";
+        summaryApproved.textContent = "0";
+        summaryReview.textContent = "0";
+        summaryErrors.textContent = "0";
         resultsList.replaceChildren();
         placeholderPanel.classList.remove("hidden");
         setStatus("ready", "Ready");
@@ -683,24 +850,134 @@
         setStatus("error", "Error");
       }
 
-      function renderResults(result) {
+      function showProgress(total) {
+        hideProgress();
+        progressTitle.textContent = `Verifying ${total} ${total === 1 ? "label" : "labels"}`;
+        progressPanel.classList.add("visible");
+        placeholderPanel.classList.add("hidden");
+        progressValue = 8;
+        setProgress(progressValue);
+        progressTimer = window.setInterval(() => {
+          progressValue = Math.min(92, progressValue + Math.max(1, (92 - progressValue) * 0.08));
+          setProgress(progressValue);
+        }, 250);
+      }
+
+      function hideProgress() {
+        if (progressTimer) {
+          window.clearInterval(progressTimer);
+          progressTimer = 0;
+        }
+        progressPanel.classList.remove("visible");
+        setProgress(0);
+      }
+
+      function completeProgress() {
+        if (progressTimer) {
+          window.clearInterval(progressTimer);
+          progressTimer = 0;
+        }
+        setProgress(100);
+      }
+
+      function setProgress(value) {
+        const rounded = Math.round(Math.max(0, Math.min(100, value)));
+        progressFill.style.width = `${rounded}%`;
+        progressCount.textContent = `${rounded}%`;
+        progressMeter.setAttribute("aria-valuenow", String(rounded));
+      }
+
+      function renderBatchResults(batch) {
         clearError();
+        hideProgress();
         resultsList.replaceChildren();
         placeholderPanel.classList.add("hidden");
 
-        const approved = result.overall_verdict === "APPROVED";
-        verdictPanel.className = `panel verdict-panel visible ${approved ? "approved" : "review"}`;
-        verdictTitle.textContent = approved ? "Approved" : "Needs Review";
-        verdictBadge.textContent = result.overall_verdict || "UNKNOWN";
-        latencyText.textContent =
-          typeof result.latency_ms === "number"
-            ? `Verified in ${Math.round(result.latency_ms)} ms.`
-            : "Verification complete.";
-        setStatus(approved ? "ok" : "error", approved ? "Approved" : "Needs Review");
+        const summary = batch.summary || {};
+        const total = Number(summary.total || 0);
+        const approved = Number(summary.approved || 0);
+        const needsReview = Number(summary.needs_review || 0);
+        const errors = Number(summary.errors || 0);
 
-        for (const item of result.results || []) {
-          resultsList.appendChild(createResultCard(item));
+        summaryTotal.textContent = String(total);
+        summaryApproved.textContent = String(approved);
+        summaryReview.textContent = String(needsReview);
+        summaryErrors.textContent = String(errors);
+        batchLatency.textContent =
+          typeof batch.latency_ms === "number"
+            ? `${Math.round(batch.latency_ms)} ms total`
+            : "";
+        summaryPanel.classList.add("visible");
+
+        const hasProblems = needsReview > 0 || errors > 0;
+        setStatus(hasProblems ? "error" : "ok", hasProblems ? "Needs Review" : "All Approved");
+
+        for (const [index, label] of (batch.labels || []).entries()) {
+          resultsList.appendChild(createBatchLabelCard(label, index));
         }
+      }
+
+      function createBatchLabelCard(label, position) {
+        const status = label.status || "ERROR";
+        const normalizedStatus = String(status).toLowerCase();
+        const details = document.createElement("details");
+        details.className = `batch-label ${normalizedStatus}`;
+        details.open = position === 0 || status !== "APPROVED";
+
+        const summary = document.createElement("summary");
+        summary.className = "batch-summary-row";
+
+        const topline = document.createElement("div");
+        topline.className = "batch-topline";
+
+        const name = document.createElement("h3");
+        name.className = "batch-name";
+        const labelNumber =
+          typeof label.index === "number" ? label.index + 1 : position + 1;
+        name.textContent = label.filename || `Label ${labelNumber}`;
+
+        const meta = document.createElement("div");
+        meta.className = "batch-meta";
+
+        const verdict =
+          label.result && label.result.overall_verdict ? label.result.overall_verdict : status;
+
+        const statusBadge = document.createElement("span");
+        statusBadge.className = `result-status ${status === "APPROVED" ? "pass" : "fail"}`;
+        statusBadge.textContent = humanize(verdict);
+
+        const latency = document.createElement("span");
+        latency.className = "batch-latency";
+        latency.textContent =
+          typeof label.latency_ms === "number"
+            ? `${Math.round(label.latency_ms)} ms`
+            : "";
+
+        meta.append(statusBadge, latency);
+        topline.append(name, meta);
+        summary.append(topline);
+
+        const body = document.createElement("div");
+        body.className = "batch-body";
+
+        if (status === "ERROR") {
+          const error = document.createElement("p");
+          error.className = "batch-error";
+          error.textContent = label.error || "The label could not be verified.";
+          body.append(error);
+        } else if (label.result) {
+          for (const item of label.result.results || []) {
+            body.appendChild(createResultCard(item));
+          }
+        } else {
+          const error = document.createElement("p");
+          error.className = "batch-error";
+          error.textContent = "No result was returned for this label.";
+          body.append(error);
+        }
+
+        details.append(summary, body);
+        return details;
       }
 
       function createResultCard(item) {
@@ -818,30 +1095,36 @@
 
       async function submitVerification(event) {
         event.preventDefault();
-        clearError();
+        clearResults();
 
-        const file = labelImage.files && labelImage.files[0];
-        if (!file) {
-          showError("Choose a label image before verifying.");
+        const files = selectedFiles();
+        if (files.length === 0) {
+          showError("Choose at least one label image before verifying.");
           return;
         }
 
-        if (file.size === 0) {
-          showError("The selected image file is empty.");
+        if (files.length > MAX_BATCH_FILES) {
+          showError(`Choose ${MAX_BATCH_FILES} or fewer label images.`);
+          return;
+        }
+
+        const emptyFile = files.find((file) => file.size === 0);
+        if (emptyFile) {
+          showError(`${emptyFile.name || "One selected file"} is empty.`);
           return;
         }
 
         const controller = new AbortController();
-        const timeoutId = window.setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+        const timeoutId = window.setTimeout(() => controller.abort(), BATCH_VERIFY_TIMEOUT_MS);
         verifyButton.disabled = true;
         verifyButton.textContent = "Verifying...";
-        setStatus("ready", "Verifying");
-        placeholderPanel.classList.add("hidden");
+        setStatus("ready", `Verifying ${files.length}`);
+        showProgress(files.length);
 
         try {
-          const response = await fetch(VERIFY_ENDPOINT, {
+          const response = await fetch(BATCH_VERIFY_ENDPOINT, {
             method: "POST",
-            body: buildVerifyPayload(file),
+            body: buildBatchVerifyPayload(files),
             signal: controller.signal,
           });
 
@@ -849,40 +1132,53 @@
             throw new Error(await getErrorText(response));
           }
 
-          const result = await response.json();
-          renderResults(result);
+          const batch = await response.json();
+          completeProgress();
+          renderBatchResults(batch);
         } catch (error) {
           const message =
             error.name === "AbortError"
-              ? "Verification took longer than 5 seconds."
-              : "The label could not be verified.";
+              ? "Batch verification took longer than expected."
+              : "The labels could not be verified.";
           const detail =
             error.name === "AbortError"
-              ? "The request was stopped at the 5 second limit."
+              ? "The request was stopped at the 15 second limit."
               : error.message;
           showError(message, detail);
         } finally {
           window.clearTimeout(timeoutId);
+          hideProgress();
           verifyButton.disabled = false;
-          verifyButton.textContent = "Verify Label";
+          verifyButton.textContent = "Verify Labels";
         }
       }
 
       function updateSelectedFile() {
-        const file = labelImage.files && labelImage.files[0];
+        const files = selectedFiles();
+        const file = files[0];
         if (previewUrl) {
           URL.revokeObjectURL(previewUrl);
           previewUrl = "";
         }
 
         if (!file) {
-          fileName.textContent = "No image selected";
+          fileName.textContent = "No images selected";
           previewWrap.classList.remove("visible");
           imagePreview.removeAttribute("src");
           return;
         }
 
-        fileName.textContent = file.name;
+        if (files.length === 1) {
+          fileName.textContent = file.name;
+        } else {
+          const visibleNames = files
+            .slice(0, 3)
+            .map((selectedFile) => selectedFile.name)
+            .join(", ");
+          const more = files.length > 3 ? ` + ${files.length - 3} more` : "";
+          fileName.textContent = `${files.length} images selected: ${visibleNames}${more}`;
+        }
+
         if (file.type.startsWith("image/")) {
           previewUrl = URL.createObjectURL(file);
           imagePreview.src = previewUrl;

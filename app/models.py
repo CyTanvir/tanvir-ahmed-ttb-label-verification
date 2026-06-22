@@ -15,6 +15,7 @@ LABEL_FIELD_NAMES: tuple[str, ...] = (
 
 MatchStatus = Literal["PASS", "FAIL"]
 OverallVerdict = Literal["APPROVED", "NEEDS_REVIEW"]
+BatchLabelStatus = Literal["APPROVED", "NEEDS_REVIEW", "ERROR"]
 MatchType = Literal[
     "fuzzy",
     "abv_numeric_tolerance",
@@ -81,4 +82,26 @@ class FieldResult(BaseModel):
 class VerificationResult(BaseModel):
     results: list[FieldResult]
     overall_verdict: OverallVerdict
+    latency_ms: float = Field(ge=0.0)
+
+
+class BatchSummary(BaseModel):
+    total: int = Field(ge=0)
+    approved: int = Field(ge=0)
+    needs_review: int = Field(ge=0)
+    errors: int = Field(ge=0)
+
+
+class BatchLabelResult(BaseModel):
+    index: int = Field(ge=0)
+    filename: str | None = None
+    status: BatchLabelStatus
+    result: VerificationResult | None = None
+    error: str | None = None
+    latency_ms: float = Field(ge=0.0)
+
+
+class BatchVerificationResult(BaseModel):
+    summary: BatchSummary
+    labels: list[BatchLabelResult]
     latency_ms: float = Field(ge=0.0)
