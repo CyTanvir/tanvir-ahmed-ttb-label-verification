@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TTB Label Verification</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7f8f4;
+        --panel: #ffffff;
+        --text: #1d2320;
+        --muted: #5d6862;
+        --border: #ccd6cf;
+        --success: #147a42;
+        --warning: #9a5b00;
+        --danger: #b42318;
+        --accent: #285d8f;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Arial,
+          Helvetica,
+          sans-serif;
+      }
+
+      main {
+        width: min(100% - 32px, 760px);
+        margin: 0 auto;
+        padding: 48px 0;
+      }
+
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 8vw, 4rem);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .subtitle {
+        margin: 0 0 32px;
+        color: var(--muted);
+        font-size: 1.35rem;
+        line-height: 1.4;
+      }
+
+      .status-panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--panel);
+        padding: 28px;
+        box-shadow: 0 10px 30px rgb(29 35 32 / 8%);
+      }
+
+      .status-line {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 44px;
+        margin-bottom: 20px;
+        font-size: 1.5rem;
+        font-weight: 700;
+      }
+
+      .status-dot {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        border-radius: 999px;
+        background: var(--warning);
+      }
+
+      .status-dot.ok {
+        background: var(--success);
+      }
+
+      .status-dot.error {
+        background: var(--danger);
+      }
+
+      pre {
+        overflow-x: auto;
+        margin: 0;
+        border-radius: 8px;
+        background: #17211c;
+        color: #f5fff8;
+        padding: 20px;
+        font-size: 1rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .retry-button {
+        margin-top: 18px;
+        min-height: 48px;
+        border: 0;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        padding: 0 22px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .retry-button:focus-visible {
+        outline: 4px solid #91c7ff;
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>TTB Label Verification</h1>
+      <p class="subtitle">The app is online when the health check below says OK.</p>
+
+      <section class="status-panel" aria-label="Application health">
+        <div class="status-line" aria-live="polite">
+          <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+          <span id="status-text">Checking health...</span>
+        </div>
+        <pre id="health-response">{}</pre>
+        <button id="retry-button" class="retry-button" type="button">Check again</button>
+      </section>
+    </main>
+
+    <script>
+      const statusDot = document.querySelector("#status-dot");
+      const statusText = document.querySelector("#status-text");
+      const healthResponse = document.querySelector("#health-response");
+      const retryButton = document.querySelector("#retry-button");
+
+      async function checkHealth() {
+        statusDot.className = "status-dot";
+        statusText.textContent = "Checking health...";
+        healthResponse.textContent = "{}";
+
+        try {
+          const response = await fetch("/health", {
+            headers: { Accept: "application/json" },
+            cache: "no-store",
+          });
+          const data = await response.json();
+          healthResponse.textContent = JSON.stringify(data, null, 2);
+
+          if (!response.ok || data.status !== "ok") {
+            throw new Error("Health check did not return OK.");
+          }
+
+          statusDot.className = "status-dot ok";
+          statusText.textContent = "Health check OK";
+        } catch (error) {
+          statusDot.className = "status-dot error";
+          statusText.textContent = "Health check failed";
+          healthResponse.textContent = JSON.stringify(
+            { error: error.message },
+            null,
+            2,
+          );
+        }
+      }
+
+      retryButton.addEventListener("click", checkHealth);
+      checkHealth();
+    </script>
+  </body>
+</html>
+
