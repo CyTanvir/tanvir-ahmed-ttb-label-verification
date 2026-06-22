@@ -1,40 +1,84 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 LABEL_FIELD_NAMES: tuple[str, ...] = (
     "brand_name",
-    "product_type",
-    "alcohol_content",
+    "class_type",
+    "abv",
     "net_contents",
-    "sulfite_statement",
+    "producer",
+    "country_of_origin",
     "government_warning",
 )
 
-ComparisonMode = Literal["fuzzy_normalized", "strict_case_sensitive"]
+MatchStatus = Literal["PASS", "FAIL"]
+OverallVerdict = Literal["APPROVED", "NEEDS_REVIEW"]
+MatchType = Literal[
+    "fuzzy",
+    "abv_numeric_tolerance",
+    "net_contents_ml",
+    "country_synonym",
+    "exact_case_sensitive",
+]
 
 
-class LabelData(BaseModel):
+class ApplicationData(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     brand_name: str | None = None
-    product_type: str | None = None
-    alcohol_content: str | None = None
+    class_type: str | None = None
+    abv: str | None = None
     net_contents: str | None = None
-    sulfite_statement: str | None = None
+    producer: str | None = None
+    country_of_origin: str | None = None
     government_warning: str | None = None
 
 
-class FieldComparison(BaseModel):
-    name: str
+class ExtractedLabel(ApplicationData):
+    brand_name: str | None = Field(
+        default=None,
+        description="Brand name exactly as it appears on the label.",
+    )
+    class_type: str | None = Field(
+        default=None,
+        description="Wine, beer, spirits, or other class/type shown on the label.",
+    )
+    abv: str | None = Field(
+        default=None,
+        description="Alcohol by volume statement shown on the label.",
+    )
+    net_contents: str | None = Field(
+        default=None,
+        description="Net contents statement shown on the label.",
+    )
+    producer: str | None = Field(
+        default=None,
+        description="Producer, bottler, importer, or responsible company shown on the label.",
+    )
+    country_of_origin: str | None = Field(
+        default=None,
+        description="Country of origin shown on the label.",
+    )
+    government_warning: str | None = Field(
+        default=None,
+        description=(
+            "Government warning text. Preserve exact capitalization, punctuation, "
+            "and wording when visible."
+        ),
+    )
+
+
+class FieldResult(BaseModel):
+    field: str
+    match_type: MatchType
     expected: str | None = None
-    extracted: str | None = None
-    comparison: ComparisonMode
-    matched: bool
-    score: float = Field(ge=0.0, le=1.0)
-    expected_normalized: str | None = None
-    extracted_normalized: str | None = None
+    found: str | None = None
+    status: MatchStatus
 
 
-class LabelComparisonResult(BaseModel):
-    matched: bool
-    fields: list[FieldComparison]
+class VerificationResult(BaseModel):
+    results: list[FieldResult]
+    overall_verdict: OverallVerdict
+    latency_ms: float = Field(ge=0.0)
