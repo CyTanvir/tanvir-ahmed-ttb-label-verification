@@ -47,9 +47,17 @@ def main() -> int:
         action="store_true",
         help="Use FakeVisionService so the script can run without an API key.",
     )
+    parser.add_argument(
+        "--regenerate-sample",
+        action="store_true",
+        help="Overwrite the default sample label image before running.",
+    )
     args = parser.parse_args()
 
-    image_path = ensure_sample_image(args.image_path)
+    image_path = ensure_sample_image(
+        args.image_path,
+        overwrite=args.regenerate_sample,
+    )
     service: VisionService
     if args.mock:
         service = FakeVisionService(SAMPLE_LABEL)
@@ -64,8 +72,8 @@ def main() -> int:
     return 0
 
 
-def ensure_sample_image(path: Path) -> Path:
-    if path.exists():
+def ensure_sample_image(path: Path, *, overwrite: bool = False) -> Path:
+    if path.exists() and not overwrite:
         return path
 
     if path.name != "sample_label.png":
@@ -90,17 +98,44 @@ def ensure_sample_image(path: Path) -> Path:
     draw.text((90, 155), "Cabernet Sauvignon", fill="black", font=font)
     draw.text((90, 235), "ALC. 13.5% BY VOL.", fill="black", font=font)
     draw.text((90, 295), "750 mL", fill="black", font=font)
-    draw.text((90, 355), "Produced by Example Wine Co.", fill="black", font=font)
-    draw.text((90, 415), "Product of USA", fill="black", font=font)
+    draw.text((90, 355), "Produced By", fill="black", font=small_font)
+    draw.text((90, 385), "Example Wine Co.", fill="black", font=font)
+    draw.text((90, 445), "Product of", fill="black", font=small_font)
+    draw.text((90, 475), "USA", fill="black", font=font)
     draw.multiline_text(
-        (90, 525),
-        GOVERNMENT_WARNING,
+        (90, 585),
+        wrap_text(draw, GOVERNMENT_WARNING, small_font, max_width=1220),
         fill="black",
         font=small_font,
         spacing=8,
     )
     image.save(path)
     return path
+
+
+def wrap_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    *,
+    max_width: int,
+) -> str:
+    lines: list[str] = []
+    current = ""
+
+    for word in text.split():
+        candidate = f"{current} {word}".strip()
+        if not current or draw.textlength(candidate, font=font) <= max_width:
+            current = candidate
+            continue
+
+        lines.append(current)
+        current = word
+
+    if current:
+        lines.append(current)
+
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

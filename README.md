@@ -50,6 +50,12 @@ Run without an API key:
 .\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock
 ```
 
+Regenerate the demo sample image if it is missing or stale:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock --regenerate-sample
+```
+
 Run with real extraction:
 
 ```powershell
@@ -106,6 +112,8 @@ After deployment, run the repeatable end-to-end check against the public URL:
 ```powershell
 .\.venv\Scripts\python.exe scripts\live_demo_check.py https://your-app.up.railway.app
 ```
+
+Add `--verbose` to print compact field-level diagnostics for any failed check.
 
 The script verifies:
 

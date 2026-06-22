@@ -59,6 +59,11 @@ def main() -> int:
         default=30.0,
         help="HTTP timeout in seconds for each request.",
     )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Print compact per-field details for failed checks.",
+    )
     args = parser.parse_args()
 
     try:
@@ -66,6 +71,7 @@ def main() -> int:
             normalize_base_url(args.base_url),
             image_path=args.image,
             timeout_seconds=args.timeout,
+            verbose=args.verbose,
         )
     except Exception as exc:  # pragma: no cover - command-line safety net
         print(f"FAIL live demo check could not run: {exc}", file=sys.stderr)
@@ -92,6 +98,7 @@ def run_checks(
     *,
     image_path: Path = DEFAULT_IMAGE,
     timeout_seconds: float = 30.0,
+    verbose: bool = False,
 ) -> list[CheckResult]:
     image_bytes = image_path.read_bytes()
     imperfect_image_bytes = make_imperfect_image_bytes(image_bytes)
@@ -99,7 +106,7 @@ def run_checks(
     with httpx.Client(timeout=timeout_seconds, follow_redirects=True) as client:
         return [
             check_health(client, base_url),
-            check_single_label(client, base_url, image_bytes),
+            check_single_label(client, base_url, image_bytes, verbose=verbose),
             check_batch_labels(client, base_url, image_bytes, imperfect_image_bytes),
             check_warning_exact_match(client, base_url, image_bytes),
             check_imperfect_image(client, base_url, imperfect_image_bytes),
@@ -123,6 +130,8 @@ def check_single_label(
     client: httpx.Client,
     base_url: str,
     image_bytes: bytes,
+    *,
+    verbose: bool = False,
 ) -> CheckResult:
     started_at = perf_counter()
     try:
@@ -135,6 +144,8 @@ def check_single_label(
     latency_ms = payload.get("latency_ms")
     passed = verdict == "APPROVED" and elapsed_ms < 5000
     detail = f"verdict={verdict}, server_latency_ms={latency_ms}, wall_ms={elapsed_ms}"
+    if verbose and not passed:
+        detail = f"{detail}, fields={format_field_results(payload)}"
     return CheckResult("single label", passed, detail)
 
 
@@ -250,6 +261,25 @@ def find_field(payload: dict[str, Any], field: str) -> dict[str, Any]:
         if item.get("field") == field:
             return item
     return {}
+
+
+def format_field_results(payload: dict[str, Any]) -> str:
+    items = []
+    for item in payload.get("results", []):
+        field = item.get("field")
+        status = item.get("status")
+        expected = compact_value(item.get("expected"))
+        found = compact_value(item.get("found"))
+        items.append(f"{field}:{status} expected={expected} found={found}")
+    return " | ".join(items)
+
+
+def compact_value(value: Any) -> str:
+    text = "null" if value is None else str(value)
+    text = " ".join(text.split())
+    if len(text) > 90:
+        return f"{text[:87]}..."
+    return text
 
 
 def make_imperfect_image_bytes(image_bytes: bytes) -> bytes:
