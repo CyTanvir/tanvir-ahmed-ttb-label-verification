@@ -116,3 +116,53 @@ def test_openai_service_from_env_requires_api_key(monkeypatch: pytest.MonkeyPatc
 
     with pytest.raises(VisionServiceConfigurationError):
         OpenAIVisionService.from_env()
+
+
+def test_openai_service_uses_tuned_stateless_request() -> None:
+    class RecordingResponses:
+        def __init__(self) -> None:
+            self.request = {}
+
+        def parse(self, **request):
+            self.request = request
+            return SimpleNamespace(output_parsed=populated_label())
+
+    class RecordingClient:
+        def __init__(self) -> None:
+            self.responses = RecordingResponses()
+
+    client = RecordingClient()
+    service = OpenAIVisionService(
+        api_key="test-key",
+        client=client,
+        timeout_seconds=3.5,
+        reasoning_effort=None,
+        image_detail="low",
+        max_output_tokens=321,
+    )
+
+    result = service.extract_label_from_bytes(
+        SAMPLE_PNG_BYTES,
+        filename="sample.png",
+        content_type="image/png",
+    )
+
+    request = client.responses.request
+    image_part = request["input"][0]["content"][1]
+    assert result.brand_name == "Example Estate"
+    assert image_part["type"] == "input_image"
+    assert image_part["detail"] == "low"
+    assert image_part["image_url"].startswith("data:image/")
+    assert request["max_output_tokens"] == 321
+    assert request["store"] is False
+    assert request["timeout"] == 3.5
+    assert "reasoning" not in request
+
+
+def test_openai_service_rejects_invalid_image_detail() -> None:
+    with pytest.raises(VisionServiceConfigurationError):
+        OpenAIVisionService(
+            api_key="test-key",
+            client=SimpleNamespace(),
+            image_detail="tiny",
+        )

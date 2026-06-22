@@ -14,12 +14,15 @@ from pydantic import BaseModel
 from app.models import ApplicationData, ExtractedLabel, LABEL_FIELD_NAMES
 
 
-DEFAULT_VISION_MODEL = "gpt-5.5"
-DEFAULT_TIMEOUT_SECONDS = 4.5
-DEFAULT_REASONING_EFFORT = "low"
-DEFAULT_MAX_IMAGE_SIDE = 1800
-DEFAULT_MAX_IMAGE_BYTES = 2_500_000
+DEFAULT_VISION_MODEL = "gpt-5.4-mini"
+DEFAULT_TIMEOUT_SECONDS = 4.25
+DEFAULT_REASONING_EFFORT = ""
+DEFAULT_IMAGE_DETAIL = "low"
+DEFAULT_MAX_OUTPUT_TOKENS = 450
+DEFAULT_MAX_IMAGE_SIDE = 1280
+DEFAULT_MAX_IMAGE_BYTES = 1_000_000
 MAX_RAW_IMAGE_BYTES = 12_000_000
+IMAGE_DETAIL_VALUES = frozenset({"low", "high", "auto", "original"})
 
 EXTRACTION_PROMPT = """
 Extract TTB alcohol label fields from this image.
@@ -147,6 +150,8 @@ class OpenAIVisionService:
         model: str = DEFAULT_VISION_MODEL,
         timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
         reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
+        image_detail: str = DEFAULT_IMAGE_DETAIL,
+        max_output_tokens: int = DEFAULT_MAX_OUTPUT_TOKENS,
         preprocessor: ImagePreprocessor | None = None,
         client: Any | None = None,
     ) -> None:
@@ -154,10 +159,16 @@ class OpenAIVisionService:
             raise VisionServiceConfigurationError(
                 "OPENAI_API_KEY must be set to use OpenAIVisionService."
             )
+        if image_detail not in IMAGE_DETAIL_VALUES:
+            raise VisionServiceConfigurationError(
+                "OPENAI_IMAGE_DETAIL must be one of: auto, high, low, original."
+            )
 
         self.model = model
         self.timeout_seconds = timeout_seconds
         self.reasoning_effort = reasoning_effort
+        self.image_detail = image_detail
+        self.max_output_tokens = max_output_tokens
         self.preprocessor = preprocessor or ImagePreprocessor()
         self._client = client or self._build_client(api_key, timeout_seconds)
 
@@ -176,11 +187,27 @@ class OpenAIVisionService:
         reasoning_effort = os.getenv(
             "OPENAI_REASONING_EFFORT", DEFAULT_REASONING_EFFORT
         )
+        image_detail = os.getenv("OPENAI_IMAGE_DETAIL", DEFAULT_IMAGE_DETAIL)
+        max_output_tokens = int(
+            os.getenv("OPENAI_MAX_OUTPUT_TOKENS", str(DEFAULT_MAX_OUTPUT_TOKENS))
+        )
+        max_image_side = int(
+            os.getenv("IMAGE_MAX_SIDE", str(DEFAULT_MAX_IMAGE_SIDE))
+        )
+        max_image_bytes = int(
+            os.getenv("IMAGE_MAX_BYTES", str(DEFAULT_MAX_IMAGE_BYTES))
+        )
         return cls(
             api_key=api_key,
             model=model,
             timeout_seconds=timeout_seconds,
             reasoning_effort=reasoning_effort or None,
+            image_detail=image_detail,
+            max_output_tokens=max_output_tokens,
+            preprocessor=ImagePreprocessor(
+                max_side=max_image_side,
+                max_output_bytes=max_image_bytes,
+            ),
         )
 
     def extract_label_from_bytes(
@@ -203,11 +230,18 @@ class OpenAIVisionService:
                     "role": "user",
                     "content": [
                         {"type": "input_text", "text": EXTRACTION_PROMPT},
-                        {"type": "input_image", "image_url": image.data_url},
+                        {
+                            "type": "input_image",
+                            "image_url": image.data_url,
+                            "detail": self.image_detail,
+                        },
                     ],
                 }
             ],
             "text_format": ExtractedLabel,
+            "max_output_tokens": self.max_output_tokens,
+            "store": False,
+            "timeout": self.timeout_seconds,
         }
         if self.reasoning_effort:
             request["reasoning"] = {"effort": self.reasoning_effort}

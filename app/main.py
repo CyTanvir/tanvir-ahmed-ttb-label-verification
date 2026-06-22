@@ -1,6 +1,7 @@
 from collections.abc import Callable, Mapping
 import asyncio
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 from pathlib import Path
 from time import perf_counter
@@ -53,7 +54,12 @@ class UploadedLabel:
 
 
 def get_vision_service_factory() -> VisionServiceFactory:
-    return OpenAIVisionService.from_env
+    return get_openai_vision_service
+
+
+@lru_cache(maxsize=1)
+def get_openai_vision_service() -> VisionService:
+    return OpenAIVisionService.from_env()
 
 
 @app.get("/health")

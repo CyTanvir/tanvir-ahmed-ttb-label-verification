@@ -4,7 +4,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-from app.main import app, get_vision_service_factory
+from app.main import app, get_openai_vision_service, get_vision_service_factory
 from app.models import ExtractedLabel
 from app.vision import FakeVisionService, VisionPreprocessingError
 
@@ -35,6 +35,7 @@ def override_vision_service(service):
 
 def clear_overrides() -> None:
     app.dependency_overrides.clear()
+    get_openai_vision_service.cache_clear()
 
 
 def batch_files(*names: str):
@@ -60,8 +61,13 @@ def test_frontend_loads_batch_label_verification_page() -> None:
 
     assert response.status_code == 200
     assert "TTB Label Verification" in response.text
+    assert '<form id="verify-form" class="panel form-panel" novalidate>' in response.text
     assert 'const BATCH_VERIFY_ENDPOINT = "/verify/batch";' in response.text
+    assert "const MAX_IMAGE_BYTES = 12 * 1000 * 1000;" in response.text
+    assert 'new Set(["image/png", "image/jpeg", "image/webp"])' in response.text
     assert 'name="label_images"' in response.text
+    assert 'aria-describedby="file-name file-error"' in response.text
+    assert 'aria-invalid="false"' in response.text
     assert "multiple" in response.text
     assert 'payload.append("label_images"' in response.text
     assert 'payload.append("application_data"' in response.text
@@ -70,6 +76,31 @@ def test_frontend_loads_batch_label_verification_page() -> None:
     assert "overall_verdict" in response.text
     assert "summary" in response.text
     assert "Verification Error" in response.text
+    assert 'id="results-area" class="results-area" aria-live="polite" aria-busy="false"' in response.text
+    assert 'aria-label="Verification progress"' in response.text
+    assert 'focusWithoutJump(summaryPanel)' in response.text
+
+
+def test_default_vision_service_factory_reuses_cached_service(monkeypatch) -> None:
+    calls = 0
+    service = FakeVisionService(ExtractedLabel(**APPLICATION_DATA))
+
+    def build_service():
+        nonlocal calls
+        calls += 1
+        return service
+
+    monkeypatch.setattr("app.main.OpenAIVisionService.from_env", build_service)
+    get_openai_vision_service.cache_clear()
+
+    try:
+        factory = get_vision_service_factory()
+
+        assert factory() is service
+        assert factory() is service
+        assert calls == 1
+    finally:
+        get_openai_vision_service.cache_clear()
 
 
 def test_verify_label_returns_full_verification_result() -> None:

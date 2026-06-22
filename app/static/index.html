@@ -188,6 +188,18 @@
         overflow-wrap: anywhere;
       }
 
+      .file-error {
+        display: none;
+        color: var(--danger);
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.35;
+      }
+
+      .file-error.visible {
+        display: block;
+      }
+
       .preview-wrap {
         display: none;
         overflow: hidden;
@@ -613,7 +625,7 @@
       </header>
 
       <div class="workflow">
-        <form id="verify-form" class="panel form-panel">
+        <form id="verify-form" class="panel form-panel" novalidate>
           <section aria-labelledby="label-image-title">
             <h2 id="label-image-title" class="section-title">Label Images</h2>
             <label class="file-picker" for="label-image">
@@ -623,10 +635,13 @@
                 name="label_images"
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                aria-describedby="file-name file-error"
+                aria-invalid="false"
                 multiple
                 required
               />
               <span id="file-name" class="file-name">No images selected</span>
+              <span id="file-error" class="file-error" role="alert"></span>
               <span id="preview-wrap" class="preview-wrap" aria-hidden="true">
                 <img id="image-preview" alt="" />
               </span>
@@ -684,14 +699,21 @@
           </div>
         </form>
 
-        <section class="results-area" aria-live="polite">
-          <div id="error-panel" class="panel error-panel" role="alert">
-            <h2>Verification Error</h2>
+        <section id="results-area" class="results-area" aria-live="polite" aria-busy="false">
+          <div
+            id="error-panel"
+            class="panel error-panel"
+            role="alert"
+            aria-labelledby="error-title"
+            aria-describedby="error-summary error-detail"
+            tabindex="-1"
+          >
+            <h2 id="error-title">Verification Error</h2>
             <p id="error-summary">The label could not be verified.</p>
             <pre id="error-detail" class="error-detail"></pre>
           </div>
 
-          <div id="progress-panel" class="panel progress-panel">
+          <div id="progress-panel" class="panel progress-panel" aria-labelledby="progress-title">
             <div class="progress-topline">
               <h2 id="progress-title">Verifying labels</h2>
               <span id="progress-count" class="progress-count">0%</span>
@@ -700,6 +722,7 @@
               id="progress-meter"
               class="progress-meter"
               role="progressbar"
+              aria-label="Verification progress"
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow="0"
@@ -708,9 +731,14 @@
             </div>
           </div>
 
-          <div id="summary-panel" class="panel summary-panel">
+          <div
+            id="summary-panel"
+            class="panel summary-panel"
+            aria-labelledby="summary-title"
+            tabindex="-1"
+          >
             <div class="summary-heading">
-              <h2>Batch Summary</h2>
+              <h2 id="summary-title">Batch Summary</h2>
               <span id="batch-latency" class="batch-latency"></span>
             </div>
             <div class="summary-grid">
@@ -746,6 +774,8 @@
       const BATCH_VERIFY_ENDPOINT = "/verify/batch";
       const BATCH_VERIFY_TIMEOUT_MS = 15000;
       const MAX_BATCH_FILES = 10;
+      const MAX_IMAGE_BYTES = 12 * 1000 * 1000;
+      const ACCEPTED_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
       const FIELD_DEFINITIONS = [
         { key: "brand_name", label: "Brand name", elementId: "brand-name" },
@@ -768,6 +798,7 @@
       const form = document.querySelector("#verify-form");
       const labelImage = document.querySelector("#label-image");
       const fileName = document.querySelector("#file-name");
+      const fileError = document.querySelector("#file-error");
       const previewWrap = document.querySelector("#preview-wrap");
       const imagePreview = document.querySelector("#image-preview");
       const verifyButton = document.querySelector("#verify-button");
@@ -782,6 +813,7 @@
       const progressCount = document.querySelector("#progress-count");
       const progressMeter = document.querySelector("#progress-meter");
       const progressFill = document.querySelector("#progress-fill");
+      const resultsArea = document.querySelector("#results-area");
       const summaryPanel = document.querySelector("#summary-panel");
       const batchLatency = document.querySelector("#batch-latency");
       const summaryTotal = document.querySelector("#summary-total");
@@ -812,6 +844,32 @@
         return Array.from(labelImage.files || []);
       }
 
+      function validateFiles(files) {
+        if (files.length === 0) {
+          return "Choose at least one label image before verifying.";
+        }
+
+        if (files.length > MAX_BATCH_FILES) {
+          return `Choose ${MAX_BATCH_FILES} or fewer label images.`;
+        }
+
+        for (const file of files) {
+          if (file.size === 0) {
+            return `${file.name || "One selected file"} is empty.`;
+          }
+
+          if (file.size > MAX_IMAGE_BYTES) {
+            return `${file.name || "One selected file"} is larger than 12 MB.`;
+          }
+
+          if (file.type && !ACCEPTED_IMAGE_TYPES.has(file.type)) {
+            return `${file.name || "One selected file"} is not a supported image type.`;
+          }
+        }
+
+        return "";
+      }
+
       function buildBatchVerifyPayload(files) {
         const payload = new FormData();
         payload.append("application_data", JSON.stringify(collectApplicationData()));
@@ -827,9 +885,27 @@
         errorDetail.textContent = "";
       }
 
+      function setFileError(message = "") {
+        labelImage.setAttribute("aria-invalid", message ? "true" : "false");
+        fileError.textContent = message;
+        fileError.classList.toggle("visible", Boolean(message));
+      }
+
+      function setResultsBusy(isBusy) {
+        resultsArea.setAttribute("aria-busy", isBusy ? "true" : "false");
+      }
+
+      function focusWithoutJump(element) {
+        window.requestAnimationFrame(() => {
+          element.focus({ preventScroll: false });
+        });
+      }
+
       function clearResults() {
         clearError();
+        setFileError();
         hideProgress();
+        setResultsBusy(false);
         summaryPanel.classList.remove("visible");
         batchLatency.textContent = "";
         summaryTotal.textContent = "0";
@@ -841,17 +917,22 @@
         setStatus("ready", "Ready");
       }
 
-      function showError(message, detail = "") {
+      function showError(message, detail = "", options = {}) {
         clearResults();
+        if (options.fileError) {
+          setFileError(options.fileError);
+        }
         errorSummary.textContent = message;
         errorDetail.textContent = detail || message;
         errorPanel.classList.add("visible");
         placeholderPanel.classList.add("hidden");
         setStatus("error", "Error");
+        focusWithoutJump(options.focusTarget || errorPanel);
       }
 
       function showProgress(total) {
         hideProgress();
+        setResultsBusy(true);
         progressTitle.textContent = `Verifying ${total} ${total === 1 ? "label" : "labels"}`;
         progressPanel.classList.add("visible");
         placeholderPanel.classList.add("hidden");
@@ -911,6 +992,7 @@
 
         const hasProblems = needsReview > 0 || errors > 0;
         setStatus(hasProblems ? "error" : "ok", hasProblems ? "Needs Review" : "All Approved");
+        focusWithoutJump(summaryPanel);
 
         for (const [index, label] of (batch.labels || []).entries()) {
           resultsList.appendChild(createBatchLabelCard(label, index));
@@ -1098,19 +1180,12 @@
         clearResults();
 
         const files = selectedFiles();
-        if (files.length === 0) {
-          showError("Choose at least one label image before verifying.");
-          return;
-        }
-
-        if (files.length > MAX_BATCH_FILES) {
-          showError(`Choose ${MAX_BATCH_FILES} or fewer label images.`);
-          return;
-        }
-
-        const emptyFile = files.find((file) => file.size === 0);
-        if (emptyFile) {
-          showError(`${emptyFile.name || "One selected file"} is empty.`);
+        const validationError = validateFiles(files);
+        if (validationError) {
+          showError(validationError, validationError, {
+            fileError: validationError,
+            focusTarget: labelImage,
+          });
           return;
         }
 
@@ -1148,12 +1223,14 @@
         } finally {
           window.clearTimeout(timeoutId);
           hideProgress();
+          setResultsBusy(false);
           verifyButton.disabled = false;
           verifyButton.textContent = "Verify Labels";
         }
       }
 
       function updateSelectedFile() {
+        setFileError();
         const files = selectedFiles();
         const file = files[0];
         if (previewUrl) {
@@ -1191,6 +1268,9 @@
 
       form.addEventListener("submit", submitVerification);
       labelImage.addEventListener("change", updateSelectedFile);
+      labelImage.addEventListener("invalid", () => {
+        setFileError("Choose at least one label image before verifying.");
+      });
       clearButton.addEventListener("click", clearResults);
       window.addEventListener("beforeunload", () => {
         if (previewUrl) {
