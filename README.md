@@ -1,6 +1,6 @@
 # TTB Label Verification
 
-Phase 0 proof-of-concept scaffold for a stateless FastAPI app with a plain HTML frontend.
+Proof-of-concept scaffold for a stateless FastAPI app with a plain HTML frontend.
 
 ## Local Development
 
@@ -13,7 +13,7 @@ python -m pytest
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open http://127.0.0.1:8000 and confirm the page shows the JSON response from `/health`.
+Open http://127.0.0.1:8000 and confirm the page lets you upload one label image, enter application data, and see a verdict with per-field results.
 
 ## Vision Extraction
 
@@ -41,4 +41,6 @@ railway up
 railway domain
 ```
 
-Open the generated Railway domain and confirm the page shows the JSON response from `/health`.
+Set `OPENAI_API_KEY` in Railway environment variables before live verification. Optional model settings can use the names from `.env.example`.
+
+Open the generated Railway domain and confirm the page lets you upload one label image, enter application data, and see a verdict with per-field results. Error responses should appear in the red verification error panel.

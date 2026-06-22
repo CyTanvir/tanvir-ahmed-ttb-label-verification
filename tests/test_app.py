@@ -46,12 +46,19 @@ def test_health_returns_ok() -> None:
     }
 
 
-def test_frontend_loads_health_page() -> None:
+def test_frontend_loads_single_label_verification_page() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
     assert "TTB Label Verification" in response.text
-    assert 'fetch("/health"' in response.text
+    assert 'const VERIFY_ENDPOINT = "/verify";' in response.text
+    assert 'name="label_image"' in response.text
+    assert 'payload.append("label_image"' in response.text
+    assert 'payload.append("application_data"' in response.text
+    for field in APPLICATION_DATA:
+        assert f'name="{field}"' in response.text
+    assert "overall_verdict" in response.text
+    assert "Verification Error" in response.text
 
 
 def test_verify_label_returns_full_verification_result() -> None:

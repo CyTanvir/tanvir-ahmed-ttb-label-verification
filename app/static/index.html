@@ -7,15 +7,22 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f7f8f4;
-        --panel: #ffffff;
-        --text: #1d2320;
-        --muted: #5d6862;
-        --border: #ccd6cf;
-        --success: #147a42;
+        --page: #f4f6f8;
+        --surface: #ffffff;
+        --surface-soft: #eef4f7;
+        --text: #17202a;
+        --muted: #53626e;
+        --border: #c9d3dc;
+        --focus: #1d6fc1;
+        --primary: #245f9b;
+        --primary-strong: #194a7b;
+        --success: #146c43;
+        --success-soft: #e8f5ee;
         --warning: #9a5b00;
+        --warning-soft: #fff2d7;
         --danger: #b42318;
-        --accent: #285d8f;
+        --danger-soft: #fdecea;
+        --ink-panel: #101820;
       }
 
       * {
@@ -25,7 +32,7 @@
       body {
         margin: 0;
         min-height: 100vh;
-        background: var(--bg);
+        background: var(--page);
         color: var(--text);
         font-family:
           Arial,
@@ -33,50 +40,58 @@
           sans-serif;
       }
 
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+
       main {
-        width: min(100% - 32px, 760px);
+        width: min(100% - 32px, 1180px);
         margin: 0 auto;
-        padding: 48px 0;
+        padding: 30px 0 44px;
+      }
+
+      .app-header {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 24px;
       }
 
       h1 {
-        margin: 0 0 12px;
-        font-size: clamp(2rem, 8vw, 4rem);
+        margin: 0;
+        font-size: clamp(2.1rem, 5vw, 3.7rem);
         line-height: 1.05;
         letter-spacing: 0;
       }
 
-      .subtitle {
-        margin: 0 0 32px;
-        color: var(--muted);
-        font-size: 1.35rem;
-        line-height: 1.4;
-      }
-
-      .status-panel {
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
         border: 1px solid var(--border);
         border-radius: 8px;
-        background: var(--panel);
-        padding: 28px;
-        box-shadow: 0 10px 30px rgb(29 35 32 / 8%);
-      }
-
-      .status-line {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        min-height: 44px;
-        margin-bottom: 20px;
-        font-size: 1.5rem;
+        background: var(--surface);
+        padding: 8px 14px;
+        color: var(--muted);
+        font-size: 1rem;
         font-weight: 700;
+        white-space: nowrap;
       }
 
       .status-dot {
-        width: 20px;
-        height: 20px;
-        flex: 0 0 20px;
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
         border-radius: 999px;
         background: var(--warning);
+      }
+
+      .status-dot.ready {
+        background: var(--primary);
       }
 
       .status-dot.ok {
@@ -87,92 +102,805 @@
         background: var(--danger);
       }
 
-      pre {
-        overflow-x: auto;
-        margin: 0;
-        border-radius: 8px;
-        background: #17211c;
-        color: #f5fff8;
-        padding: 20px;
-        font-size: 1rem;
-        line-height: 1.5;
-        white-space: pre-wrap;
-        word-break: break-word;
+      .workflow {
+        display: grid;
+        grid-template-columns: minmax(0, 0.95fr) minmax(360px, 1.05fr);
+        gap: 22px;
+        align-items: start;
       }
 
-      .retry-button {
-        margin-top: 18px;
-        min-height: 48px;
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        box-shadow: 0 10px 28px rgb(16 24 32 / 8%);
+      }
+
+      .form-panel {
+        padding: 24px;
+      }
+
+      .section-title {
+        margin: 0 0 16px;
+        font-size: 1.45rem;
+        line-height: 1.2;
+        letter-spacing: 0;
+      }
+
+      .field-group {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 18px;
+      }
+
+      .field-group label,
+      .file-title {
+        color: var(--text);
+        font-size: 1.05rem;
+        font-weight: 700;
+      }
+
+      input[type="text"],
+      textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        padding: 13px 14px;
+        font-size: 1.08rem;
+        line-height: 1.35;
+      }
+
+      textarea {
+        min-height: 114px;
+        resize: vertical;
+      }
+
+      input[type="text"]:focus,
+      textarea:focus,
+      .file-picker:focus-within,
+      button:focus-visible {
+        border-color: var(--focus);
+        outline: 4px solid rgb(29 111 193 / 22%);
+        outline-offset: 2px;
+      }
+
+      .file-picker {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+        min-height: 160px;
+        border: 2px dashed #9fb2c2;
+        border-radius: 8px;
+        background: var(--surface-soft);
+        padding: 18px;
+        cursor: pointer;
+      }
+
+      .file-picker input {
+        width: 100%;
+        min-height: 46px;
+      }
+
+      .file-name {
+        color: var(--muted);
+        font-size: 1rem;
+        overflow-wrap: anywhere;
+      }
+
+      .preview-wrap {
+        display: none;
+        overflow: hidden;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        aspect-ratio: 4 / 3;
+      }
+
+      .preview-wrap.visible {
+        display: block;
+      }
+
+      .preview-wrap img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+      }
+
+      .fields-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0 16px;
+      }
+
+      .field-group.full {
+        grid-column: 1 / -1;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        margin-top: 8px;
+      }
+
+      .verify-button {
+        min-height: 56px;
         border: 0;
         border-radius: 8px;
-        background: var(--accent);
+        background: var(--primary);
         color: #fff;
-        padding: 0 22px;
-        font-size: 1.1rem;
+        padding: 0 24px;
+        font-size: 1.22rem;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .verify-button:hover {
+        background: var(--primary-strong);
+      }
+
+      .verify-button:disabled {
+        background: #8fa5b8;
+        cursor: wait;
+      }
+
+      .secondary-button {
+        min-height: 50px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        color: var(--text);
+        padding: 0 18px;
         font-weight: 700;
         cursor: pointer;
       }
 
-      .retry-button:focus-visible {
-        outline: 4px solid #91c7ff;
-        outline-offset: 3px;
+      .results-area {
+        display: grid;
+        gap: 18px;
+      }
+
+      .placeholder-panel,
+      .error-panel,
+      .verdict-panel {
+        padding: 24px;
+      }
+
+      .placeholder-panel {
+        min-height: 220px;
+        display: grid;
+        align-content: center;
+        color: var(--muted);
+      }
+
+      .placeholder-panel p,
+      .error-panel p,
+      .verdict-panel p {
+        margin: 0;
+        font-size: 1.1rem;
+        line-height: 1.45;
+      }
+
+      .error-panel {
+        display: none;
+        border-color: #f1a7a0;
+        background: var(--danger-soft);
+        color: #7a1b12;
+      }
+
+      .error-panel.visible {
+        display: block;
+      }
+
+      .error-panel h2,
+      .verdict-panel h2 {
+        margin: 0 0 8px;
+        font-size: 1.55rem;
+        line-height: 1.2;
+        letter-spacing: 0;
+      }
+
+      .error-detail {
+        margin-top: 14px;
+        overflow-x: auto;
+        border-radius: 8px;
+        background: #fff;
+        color: #6d1a12;
+        padding: 14px;
+        font-size: 1rem;
+        line-height: 1.45;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .verdict-panel {
+        display: none;
+      }
+
+      .verdict-panel.visible {
+        display: block;
+      }
+
+      .verdict-panel.approved {
+        border-color: #a5d6bd;
+        background: var(--success-soft);
+      }
+
+      .verdict-panel.review {
+        border-color: #f2cf8a;
+        background: var(--warning-soft);
+      }
+
+      .verdict-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .verdict-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 38px;
+        border-radius: 8px;
+        padding: 6px 12px;
+        background: var(--ink-panel);
+        color: #fff;
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .result-list {
+        display: grid;
+        gap: 12px;
+      }
+
+      .field-result {
+        display: grid;
+        gap: 14px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 16px;
+      }
+
+      .field-result.fail {
+        border-color: #f1a7a0;
+      }
+
+      .result-topline {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .result-field {
+        margin: 0;
+        font-size: 1.25rem;
+        line-height: 1.25;
+        letter-spacing: 0;
+      }
+
+      .result-status {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        border-radius: 8px;
+        padding: 5px 10px;
+        color: #fff;
+        font-size: 0.95rem;
+        font-weight: 800;
+      }
+
+      .result-status.pass {
+        background: var(--success);
+      }
+
+      .result-status.fail {
+        background: var(--danger);
+      }
+
+      .result-values {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .value-box {
+        min-width: 0;
+        border-radius: 8px;
+        background: #f7f9fb;
+        padding: 12px;
+      }
+
+      .value-label {
+        margin: 0 0 6px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0;
+      }
+
+      .value-text {
+        margin: 0;
+        color: var(--text);
+        font-size: 1rem;
+        line-height: 1.45;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .match-type {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.98rem;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      @media (max-width: 900px) {
+        .app-header {
+          align-items: start;
+          flex-direction: column;
+        }
+
+        .status-chip {
+          white-space: normal;
+        }
+
+        .workflow {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 620px) {
+        main {
+          width: min(100% - 20px, 1180px);
+          padding-top: 20px;
+        }
+
+        .form-panel,
+        .placeholder-panel,
+        .error-panel,
+        .verdict-panel {
+          padding: 18px;
+        }
+
+        .fields-grid,
+        .result-values {
+          grid-template-columns: 1fr;
+        }
+
+        .verify-button,
+        .secondary-button {
+          width: 100%;
+        }
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>TTB Label Verification</h1>
-      <p class="subtitle">The app is online when the health check below says OK.</p>
-
-      <section class="status-panel" aria-label="Application health">
-        <div class="status-line" aria-live="polite">
-          <span id="status-dot" class="status-dot" aria-hidden="true"></span>
-          <span id="status-text">Checking health...</span>
+      <header class="app-header">
+        <h1>TTB Label Verification</h1>
+        <div class="status-chip" aria-live="polite">
+          <span id="status-dot" class="status-dot ready" aria-hidden="true"></span>
+          <span id="status-text">Ready</span>
         </div>
-        <pre id="health-response">{}</pre>
-        <button id="retry-button" class="retry-button" type="button">Check again</button>
-      </section>
+      </header>
+
+      <div class="workflow">
+        <form id="verify-form" class="panel form-panel">
+          <section aria-labelledby="label-image-title">
+            <h2 id="label-image-title" class="section-title">Label Image</h2>
+            <label class="file-picker" for="label-image">
+              <span class="file-title">Choose image</span>
+              <input
+                id="label-image"
+                name="label_image"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                required
+              />
+              <span id="file-name" class="file-name">No image selected</span>
+              <span id="preview-wrap" class="preview-wrap" aria-hidden="true">
+                <img id="image-preview" alt="" />
+              </span>
+            </label>
+          </section>
+
+          <section aria-labelledby="application-data-title">
+            <h2 id="application-data-title" class="section-title">Application Data</h2>
+            <div class="fields-grid">
+              <div class="field-group">
+                <label for="brand-name">Brand name</label>
+                <input id="brand-name" name="brand_name" type="text" autocomplete="off" />
+              </div>
+
+              <div class="field-group">
+                <label for="class-type">Class/type</label>
+                <input id="class-type" name="class_type" type="text" autocomplete="off" />
+              </div>
+
+              <div class="field-group">
+                <label for="abv">ABV</label>
+                <input id="abv" name="abv" type="text" autocomplete="off" />
+              </div>
+
+              <div class="field-group">
+                <label for="net-contents">Net contents</label>
+                <input id="net-contents" name="net_contents" type="text" autocomplete="off" />
+              </div>
+
+              <div class="field-group">
+                <label for="producer">Producer</label>
+                <input id="producer" name="producer" type="text" autocomplete="off" />
+              </div>
+
+              <div class="field-group">
+                <label for="country-of-origin">Country of origin</label>
+                <input
+                  id="country-of-origin"
+                  name="country_of_origin"
+                  type="text"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div class="field-group full">
+                <label for="government-warning">Government warning (exact case)</label>
+                <textarea id="government-warning" name="government_warning" autocomplete="off">GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems.</textarea>
+              </div>
+            </div>
+          </section>
+
+          <div class="actions">
+            <button id="verify-button" class="verify-button" type="submit">Verify Label</button>
+            <button id="clear-button" class="secondary-button" type="button">Clear Results</button>
+          </div>
+        </form>
+
+        <section class="results-area" aria-live="polite">
+          <div id="error-panel" class="panel error-panel" role="alert">
+            <h2>Verification Error</h2>
+            <p id="error-summary">The label could not be verified.</p>
+            <pre id="error-detail" class="error-detail"></pre>
+          </div>
+
+          <div id="verdict-panel" class="panel verdict-panel">
+            <div class="verdict-heading">
+              <h2 id="verdict-title">Verdict</h2>
+              <span id="verdict-badge" class="verdict-badge">Waiting</span>
+            </div>
+            <p id="latency-text"></p>
+          </div>
+
+          <div id="results-list" class="result-list"></div>
+
+          <div id="placeholder-panel" class="panel placeholder-panel">
+            <p>Results will appear here.</p>
+          </div>
+        </section>
+      </div>
     </main>
 
     <script>
+      const VERIFY_ENDPOINT = "/verify";
+      const VERIFY_TIMEOUT_MS = 5000;
+
+      const FIELD_DEFINITIONS = [
+        { key: "brand_name", label: "Brand name", elementId: "brand-name" },
+        { key: "class_type", label: "Class/type", elementId: "class-type" },
+        { key: "abv", label: "ABV", elementId: "abv" },
+        { key: "net_contents", label: "Net contents", elementId: "net-contents" },
+        { key: "producer", label: "Producer", elementId: "producer" },
+        {
+          key: "country_of_origin",
+          label: "Country of origin",
+          elementId: "country-of-origin",
+        },
+        {
+          key: "government_warning",
+          label: "Government warning",
+          elementId: "government-warning",
+        },
+      ];
+
+      const form = document.querySelector("#verify-form");
+      const labelImage = document.querySelector("#label-image");
+      const fileName = document.querySelector("#file-name");
+      const previewWrap = document.querySelector("#preview-wrap");
+      const imagePreview = document.querySelector("#image-preview");
+      const verifyButton = document.querySelector("#verify-button");
+      const clearButton = document.querySelector("#clear-button");
       const statusDot = document.querySelector("#status-dot");
       const statusText = document.querySelector("#status-text");
-      const healthResponse = document.querySelector("#health-response");
-      const retryButton = document.querySelector("#retry-button");
+      const errorPanel = document.querySelector("#error-panel");
+      const errorSummary = document.querySelector("#error-summary");
+      const errorDetail = document.querySelector("#error-detail");
+      const verdictPanel = document.querySelector("#verdict-panel");
+      const verdictTitle = document.querySelector("#verdict-title");
+      const verdictBadge = document.querySelector("#verdict-badge");
+      const latencyText = document.querySelector("#latency-text");
+      const resultsList = document.querySelector("#results-list");
+      const placeholderPanel = document.querySelector("#placeholder-panel");
 
-      async function checkHealth() {
-        statusDot.className = "status-dot";
-        statusText.textContent = "Checking health...";
-        healthResponse.textContent = "{}";
+      let previewUrl = "";
 
-        try {
-          const response = await fetch("/health", {
-            headers: { Accept: "application/json" },
-            cache: "no-store",
-          });
-          const data = await response.json();
-          healthResponse.textContent = JSON.stringify(data, null, 2);
+      function setStatus(kind, text) {
+        statusDot.className = `status-dot ${kind}`;
+        statusText.textContent = text;
+      }
 
-          if (!response.ok || data.status !== "ok") {
-            throw new Error("Health check did not return OK.");
-          }
+      function collectApplicationData() {
+        return FIELD_DEFINITIONS.reduce((data, field) => {
+          const value = document.querySelector(`#${field.elementId}`).value.trim();
+          data[field.key] = value || null;
+          return data;
+        }, {});
+      }
 
-          statusDot.className = "status-dot ok";
-          statusText.textContent = "Health check OK";
-        } catch (error) {
-          statusDot.className = "status-dot error";
-          statusText.textContent = "Health check failed";
-          healthResponse.textContent = JSON.stringify(
-            { error: error.message },
-            null,
-            2,
-          );
+      function buildVerifyPayload(file) {
+        const payload = new FormData();
+        payload.append("application_data", JSON.stringify(collectApplicationData()));
+        payload.append("label_image", file, file.name);
+        return payload;
+      }
+
+      function clearError() {
+        errorPanel.classList.remove("visible");
+        errorSummary.textContent = "The label could not be verified.";
+        errorDetail.textContent = "";
+      }
+
+      function clearResults() {
+        clearError();
+        verdictPanel.className = "panel verdict-panel";
+        verdictTitle.textContent = "Verdict";
+        verdictBadge.textContent = "Waiting";
+        latencyText.textContent = "";
+        resultsList.replaceChildren();
+        placeholderPanel.classList.remove("hidden");
+        setStatus("ready", "Ready");
+      }
+
+      function showError(message, detail = "") {
+        clearResults();
+        errorSummary.textContent = message;
+        errorDetail.textContent = detail || message;
+        errorPanel.classList.add("visible");
+        placeholderPanel.classList.add("hidden");
+        setStatus("error", "Error");
+      }
+
+      function renderResults(result) {
+        clearError();
+        resultsList.replaceChildren();
+        placeholderPanel.classList.add("hidden");
+
+        const approved = result.overall_verdict === "APPROVED";
+        verdictPanel.className = `panel verdict-panel visible ${approved ? "approved" : "review"}`;
+        verdictTitle.textContent = approved ? "Approved" : "Needs Review";
+        verdictBadge.textContent = result.overall_verdict || "UNKNOWN";
+        latencyText.textContent =
+          typeof result.latency_ms === "number"
+            ? `Verified in ${Math.round(result.latency_ms)} ms.`
+            : "Verification complete.";
+        setStatus(approved ? "ok" : "error", approved ? "Approved" : "Needs Review");
+
+        for (const item of result.results || []) {
+          resultsList.appendChild(createResultCard(item));
         }
       }
 
-      retryButton.addEventListener("click", checkHealth);
-      checkHealth();
+      function createResultCard(item) {
+        const field = FIELD_DEFINITIONS.find((definition) => definition.key === item.field);
+        const passed = item.status === "PASS";
+        const card = document.createElement("article");
+        card.className = `field-result ${passed ? "pass" : "fail"}`;
+
+        const topline = document.createElement("div");
+        topline.className = "result-topline";
+
+        const title = document.createElement("h3");
+        title.className = "result-field";
+        title.textContent = field ? field.label : humanize(item.field);
+
+        const status = document.createElement("span");
+        status.className = `result-status ${passed ? "pass" : "fail"}`;
+        status.textContent = passed ? "PASS" : "FAIL";
+
+        topline.append(title, status);
+
+        const values = document.createElement("div");
+        values.className = "result-values";
+        values.append(
+          createValueBox("Expected", displayValue(item.expected)),
+          createValueBox("Found", displayValue(item.found)),
+        );
+
+        const matchType = document.createElement("p");
+        matchType.className = "match-type";
+        matchType.textContent = `Match: ${humanize(item.match_type)}`;
+
+        card.append(topline, values, matchType);
+        return card;
+      }
+
+      function createValueBox(label, value) {
+        const box = document.createElement("div");
+        box.className = "value-box";
+
+        const valueLabel = document.createElement("p");
+        valueLabel.className = "value-label";
+        valueLabel.textContent = label;
+
+        const valueText = document.createElement("p");
+        valueText.className = "value-text";
+        valueText.textContent = value;
+
+        box.append(valueLabel, valueText);
+        return box;
+      }
+
+      function displayValue(value) {
+        if (value === null || value === undefined || value === "") {
+          return "Not provided";
+        }
+        return String(value);
+      }
+
+      function humanize(value) {
+        return String(value || "")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (letter) => letter.toUpperCase());
+      }
+
+      async function getErrorText(response) {
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("application/json")) {
+          const data = await response.json();
+          return formatDetail(data.detail ?? data);
+        }
+
+        const text = await response.text();
+        return text || `${response.status} ${response.statusText}`;
+      }
+
+      function formatDetail(detail) {
+        if (typeof detail === "string") {
+          return detail;
+        }
+
+        if (Array.isArray(detail)) {
+          return detail.map(formatDetailItem).join("\n");
+        }
+
+        if (detail && typeof detail === "object") {
+          const lines = [];
+          if (typeof detail.message === "string") {
+            lines.push(detail.message);
+          }
+          if (Array.isArray(detail.errors)) {
+            lines.push(...detail.errors.map(formatDetailItem));
+          }
+          if (lines.length > 0) {
+            return lines.join("\n");
+          }
+          return JSON.stringify(detail, null, 2);
+        }
+
+        return "The server returned an error.";
+      }
+
+      function formatDetailItem(item) {
+        if (typeof item === "string") {
+          return item;
+        }
+        if (!item || typeof item !== "object") {
+          return String(item);
+        }
+
+        const location = Array.isArray(item.loc) ? item.loc.join(" > ") : item.loc;
+        const message = item.msg || item.message || JSON.stringify(item);
+        return location ? `${humanize(location)}: ${message}` : message;
+      }
+
+      async function submitVerification(event) {
+        event.preventDefault();
+        clearError();
+
+        const file = labelImage.files && labelImage.files[0];
+        if (!file) {
+          showError("Choose a label image before verifying.");
+          return;
+        }
+
+        if (file.size === 0) {
+          showError("The selected image file is empty.");
+          return;
+        }
+
+        const controller = new AbortController();
+        const timeoutId = window.setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS);
+        verifyButton.disabled = true;
+        verifyButton.textContent = "Verifying...";
+        setStatus("ready", "Verifying");
+        placeholderPanel.classList.add("hidden");
+
+        try {
+          const response = await fetch(VERIFY_ENDPOINT, {
+            method: "POST",
+            body: buildVerifyPayload(file),
+            signal: controller.signal,
+          });
+
+          if (!response.ok) {
+            throw new Error(await getErrorText(response));
+          }
+
+          const result = await response.json();
+          renderResults(result);
+        } catch (error) {
+          const message =
+            error.name === "AbortError"
+              ? "Verification took longer than 5 seconds."
+              : "The label could not be verified.";
+          const detail =
+            error.name === "AbortError"
+              ? "The request was stopped at the 5 second limit."
+              : error.message;
+          showError(message, detail);
+        } finally {
+          window.clearTimeout(timeoutId);
+          verifyButton.disabled = false;
+          verifyButton.textContent = "Verify Label";
+        }
+      }
+
+      function updateSelectedFile() {
+        const file = labelImage.files && labelImage.files[0];
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+          previewUrl = "";
+        }
+
+        if (!file) {
+          fileName.textContent = "No image selected";
+          previewWrap.classList.remove("visible");
+          imagePreview.removeAttribute("src");
+          return;
+        }
+
+        fileName.textContent = file.name;
+        if (file.type.startsWith("image/")) {
+          previewUrl = URL.createObjectURL(file);
+          imagePreview.src = previewUrl;
+          previewWrap.classList.add("visible");
+        } else {
+          previewWrap.classList.remove("visible");
+          imagePreview.removeAttribute("src");
+        }
+      }
+
+      form.addEventListener("submit", submitVerification);
+      labelImage.addEventListener("change", updateSelectedFile);
+      clearButton.addEventListener("click", clearResults);
+      window.addEventListener("beforeunload", () => {
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+      });
     </script>
   </body>
 </html>
-
