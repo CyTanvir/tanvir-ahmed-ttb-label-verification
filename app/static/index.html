@@ -19,9 +19,26 @@
       <div class="workflow">
         <form id="verify-form" class="panel form-panel" novalidate>
           <section aria-labelledby="label-image-title">
-            <h2 id="label-image-title" class="section-title">Label Images</h2>
+            <h2 id="label-image-title" class="section-title">
+              <span class="section-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <path d="M21 15l-5-5-4 4-3-3-6 6"></path>
+                </svg>
+              </span>
+              Label Images
+            </h2>
             <label class="file-picker" for="label-image">
+              <span class="upload-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 16V4"></path>
+                  <path d="M7 8l5-5 5 5"></path>
+                  <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path>
+                </svg>
+              </span>
               <span class="file-title">Choose images</span>
+              <span class="file-subtitle">Choose files to upload</span>
               <input
                 id="label-image"
                 name="label_images"
@@ -41,7 +58,16 @@
           </section>
 
           <section aria-labelledby="application-data-title">
-            <h2 id="application-data-title" class="section-title">Application Data</h2>
+            <h2 id="application-data-title" class="section-title">
+              <span class="section-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <ellipse cx="12" cy="5" rx="8" ry="3"></ellipse>
+                  <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5"></path>
+                  <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"></path>
+                </svg>
+              </span>
+              Application Data
+            </h2>
             <div class="fields-grid">
               <div class="field-group">
                 <label for="brand-name">Brand name</label>
@@ -170,7 +196,14 @@
           <div id="results-list" class="result-list"></div>
 
           <div id="placeholder-panel" class="panel placeholder-panel">
-            <p>Results will appear here.</p>
+            <span class="placeholder-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"></path>
+                <path d="M14 3v5h5"></path>
+              </svg>
+            </span>
+            <p class="placeholder-title">Results will appear here.</p>
+            <p class="placeholder-subtitle">Upload images and click &quot;Verify Labels&quot; to see results.</p>
           </div>
         </section>
       </div>
