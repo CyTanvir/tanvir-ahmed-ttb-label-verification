@@ -171,9 +171,10 @@ def check_batch_labels(
         return CheckResult("batch labels", False, str(exc))
 
     summary = payload.get("summary", {})
+    items = payload.get("items", [])
     total = summary.get("total")
-    errors = summary.get("errors")
-    passed = total == 2 and errors == 0 and len(payload.get("labels", [])) == 2
+    item_errors = sum(1 for item in items if item.get("status") == "ERROR")
+    passed = total == 2 and item_errors == 0 and len(items) == 2
     detail = f"summary={json.dumps(summary, sort_keys=True)}"
     return CheckResult("batch labels", passed, detail)
 

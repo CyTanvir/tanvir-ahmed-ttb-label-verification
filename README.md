@@ -26,8 +26,44 @@ Copy `.env.example` for local use, but never commit a real `.env` file.
 | `OPENAI_MAX_OUTPUT_TOKENS` | No | Output token cap for extraction responses. |
 | `IMAGE_MAX_SIDE` | No | Largest image side after preprocessing. |
 | `IMAGE_MAX_BYTES` | No | Maximum preprocessed image payload size. |
+| `MAX_BATCH_LABELS` | No | Per-request cap on images accepted by `/verify/batch`. Defaults to `10`. |
+| `MAX_BATCH_CONCURRENCY` | No | Max concurrent extractions within one batch request. Defaults to `4`. |
+
+## Model
+
+The app uses `OPENAI_VISION_MODEL` (default: `gpt-4.1-mini`, see
+`app/vision.py`) for label extraction. Chosen over `gpt-4o-mini` and
+`gpt-4.1-nano` for the most reliable verbatim capture of the government
+warning field, while staying well inside the 5-second single-label budget.
+Before a submission or deploy, confirm this model id is still current:
+
+```
+python scripts/verify_model.py
+```
+
+This pings OpenAI's model list with `OPENAI_API_KEY` and fails if the
+configured model isn't on it. The same check also runs in CI on every push
+and pull request to `main` (see `.github/workflows/model-check.yml`), using
+an `OPENAI_API_KEY` repository secret, so a renamed or retired model fails
+the build instead of surfacing as a runtime error.
+
+- Model in use: `gpt-4.1-mini`
+- Last verified against the live OpenAI model list: 2026-07-12
 
 ## Local Development
+
+macOS/Linux:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pytest
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Windows (PowerShell):
 
 ```powershell
 python -m venv .venv
@@ -46,17 +82,24 @@ Labels**.
 
 Run without an API key:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock
-```
+macOS/Linux: `.venv/bin/python scripts/run_vision_sample.py --mock`
+Windows: `.\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock`
 
 Regenerate the demo sample image if it is missing or stale:
 
-```powershell
-.\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock --regenerate-sample
-```
+macOS/Linux: `.venv/bin/python scripts/run_vision_sample.py --mock --regenerate-sample`
+Windows: `.\.venv\Scripts\python.exe scripts\run_vision_sample.py --mock --regenerate-sample`
 
 Run with real extraction:
+
+macOS/Linux:
+
+```bash
+export OPENAI_API_KEY="your-key-here"
+.venv/bin/python scripts/run_vision_sample.py
+```
+
+Windows (PowerShell):
 
 ```powershell
 $env:OPENAI_API_KEY="your-key-here"
@@ -93,7 +136,9 @@ Application fields:
 
 ## Deploy To Railway
 
-```powershell
+These commands are identical on macOS/Linux and Windows:
+
+```bash
 npm install -g @railway/cli
 railway login
 railway init --name ttb-label-verification
@@ -107,11 +152,13 @@ README examples, source files, tests, or screenshots.
 
 ## Live Demo Check
 
-After deployment, run the repeatable end-to-end check against the public URL:
+After deployment, run the repeatable end-to-end check against the public URL.
 
-```powershell
-.\.venv\Scripts\python.exe scripts\live_demo_check.py https://your-app.up.railway.app
-```
+**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
+**Last verified end-to-end (all 5 checks passing):** 2026-07-12
+
+macOS/Linux: `.venv/bin/python scripts/live_demo_check.py <live-url>`
+Windows: `.\.venv\Scripts\python.exe scripts\live_demo_check.py <live-url>`
 
 Add `--verbose` to print compact field-level diagnostics for any failed check.
 

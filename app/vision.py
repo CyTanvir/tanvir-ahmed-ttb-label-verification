@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from io import BytesIO
 import json
+import logging
 import os
 import re
 from typing import Any, Protocol
@@ -14,11 +15,11 @@ from pydantic import BaseModel
 from app.models import ApplicationData, ExtractedLabel, LABEL_FIELD_NAMES
 
 
-DEFAULT_VISION_MODEL = "gpt-5.4-mini"
+DEFAULT_VISION_MODEL = "gpt-4.1-mini"
 DEFAULT_TIMEOUT_SECONDS = 4.25
 DEFAULT_REASONING_EFFORT = ""
 DEFAULT_IMAGE_DETAIL = "low"
-DEFAULT_MAX_OUTPUT_TOKENS = 450
+DEFAULT_MAX_OUTPUT_TOKENS = 300
 DEFAULT_MAX_IMAGE_SIDE = 1280
 DEFAULT_MAX_IMAGE_BYTES = 1_000_000
 MAX_RAW_IMAGE_BYTES = 12_000_000
@@ -31,7 +32,9 @@ Fields: brand_name, class_type, abv, net_contents, producer,
 country_of_origin, government_warning, raw_text, extraction_confidence.
 Return only the structured fields. Use null for any field that is not visible.
 For government_warning, preserve exact capitalization, punctuation, and wording.
-For raw_text, transcribe all text visible on the label as-is.
+For raw_text, briefly list any label text not already captured in the fields
+above (do not repeat government_warning verbatim again); keep it under 200
+characters.
 For extraction_confidence, give your overall confidence in this extraction as a
 number from 0.0 to 1.0.
 Do not infer values that are not visible on the label.
@@ -44,6 +47,8 @@ SUPPORTED_MEDIA_TYPES = {
     "image/png",
     "image/webp",
 }
+
+logger = logging.getLogger(__name__)
 
 
 class VisionServiceError(RuntimeError):
@@ -254,9 +259,27 @@ class OpenAIVisionService:
         try:
             response = self._client.responses.parse(**request)
         except Exception as exc:  # pragma: no cover - network/API behavior
+            logger.exception("Vision extraction request failed.")
             raise VisionServiceError("Vision extraction request failed.") from exc
 
         return parse_extracted_label_response(response)
+
+    def warm_up(self) -> None:
+        """Best-effort: exercise the real responses endpoint for this model
+        ahead of the first user request. A ping to /v1/models only warms the
+        TCP/TLS connection, not whatever OpenAI provisions server-side for a
+        model's first /v1/responses call, which is where the real first-hit
+        latency lives."""
+        try:
+            self._client.responses.create(
+                model=self.model,
+                input="ping",
+                max_output_tokens=16,
+                store=False,
+                timeout=self.timeout_seconds,
+            )
+        except Exception:  # pragma: no cover - best-effort only
+            logger.exception("Vision service warm-up call failed.")
 
     @staticmethod
     def _build_client(api_key: str, timeout_seconds: float) -> Any:

@@ -1,8 +1,10 @@
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 import asyncio
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import lru_cache
 import json
+import os
 from pathlib import Path
 from time import perf_counter
 from typing import Annotated
@@ -31,17 +33,35 @@ from app.vision import (
 
 APP_VERSION = "0.1.0"
 SERVICE_NAME = "ttb-label-verification"
-MAX_BATCH_LABELS = 10
-MAX_BATCH_CONCURRENCY = 4
+DEFAULT_MAX_BATCH_LABELS = 10
+DEFAULT_MAX_BATCH_CONCURRENCY = 4
+MAX_BATCH_LABELS = int(os.getenv("MAX_BATCH_LABELS", str(DEFAULT_MAX_BATCH_LABELS)))
+MAX_BATCH_CONCURRENCY = int(
+    os.getenv("MAX_BATCH_CONCURRENCY", str(DEFAULT_MAX_BATCH_CONCURRENCY))
+)
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 INDEX_FILE = STATIC_DIR / "index.html"
 VisionServiceFactory = Callable[[], VisionService]
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    try:
+        service = get_vision_service_factory()()
+        warm_up = getattr(service, "warm_up", None)
+        if warm_up is not None:
+            await asyncio.to_thread(warm_up)
+    except Exception:
+        pass
+    yield
+
+
 app = FastAPI(
     title="TTB Label Verification",
     version=APP_VERSION,
+    lifespan=lifespan,
 )
 
 
