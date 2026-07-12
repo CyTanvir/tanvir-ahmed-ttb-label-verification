@@ -28,11 +28,16 @@ EXTRACTION_PROMPT = """
 Extract TTB alcohol label fields from this image.
 
 Fields: brand_name, class_type, abv, net_contents, producer,
-country_of_origin, government_warning.
+country_of_origin, government_warning, raw_text, extraction_confidence.
 Return only the structured fields. Use null for any field that is not visible.
 For government_warning, preserve exact capitalization, punctuation, and wording.
+For raw_text, transcribe all text visible on the label as-is.
+For extraction_confidence, give your overall confidence in this extraction as a
+number from 0.0 to 1.0.
 Do not infer values that are not visible on the label.
 """.strip()
+
+EXTRA_EXTRACTED_FIELDS: tuple[str, ...] = ("raw_text", "extraction_confidence")
 
 SUPPORTED_MEDIA_TYPES = {
     "image/jpeg",
@@ -396,7 +401,10 @@ def _unwrap_label_payload(value: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _normalize_label_keys(value: Mapping[str, Any]) -> dict[str, Any]:
-    canonical_keys = {_canonical_key(name): name for name in LABEL_FIELD_NAMES}
+    canonical_keys = {
+        _canonical_key(name): name
+        for name in (*LABEL_FIELD_NAMES, *EXTRA_EXTRACTED_FIELDS)
+    }
     normalized: dict[str, Any] = {}
 
     for key, field_value in value.items():

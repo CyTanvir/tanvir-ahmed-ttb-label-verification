@@ -69,6 +69,16 @@ class ExtractedLabel(ApplicationData):
             "and wording when visible."
         ),
     )
+    raw_text: str | None = Field(
+        default=None,
+        description="All text visible on the label, transcribed as-is.",
+    )
+    extraction_confidence: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Model's confidence in the extraction, from 0.0 to 1.0.",
+    )
 
 
 class FieldResult(BaseModel):
@@ -87,9 +97,8 @@ class VerificationResult(BaseModel):
 
 class BatchSummary(BaseModel):
     total: int = Field(ge=0)
-    approved: int = Field(ge=0)
+    passed: int = Field(ge=0)
     needs_review: int = Field(ge=0)
-    errors: int = Field(ge=0)
 
 
 class BatchLabelResult(BaseModel):
@@ -103,5 +112,5 @@ class BatchLabelResult(BaseModel):
 
 class BatchVerificationResult(BaseModel):
     summary: BatchSummary
-    labels: list[BatchLabelResult]
+    items: list[BatchLabelResult]
     latency_ms: float = Field(ge=0.0)

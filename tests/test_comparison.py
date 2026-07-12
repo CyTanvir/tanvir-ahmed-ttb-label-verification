@@ -1,3 +1,5 @@
+import re
+
 from app.comparison import compare_labels
 from app.models import LABEL_FIELD_NAMES, ApplicationData
 
@@ -173,3 +175,106 @@ def test_government_warning_correct_all_caps_passes_strict_case_sensitive_match(
     assert result.overall_verdict == "APPROVED"
     assert warning.match_type == "exact_case_sensitive"
     assert warning.status == "PASS"
+
+
+def test_government_warning_both_missing_fails_instead_of_passing() -> None:
+    expected = ApplicationData(government_warning=None)
+    found = ApplicationData(government_warning=None)
+
+    result = compare_labels(expected, found)
+    warning = result_for(result, "government_warning")
+
+    assert result.overall_verdict == "NEEDS_REVIEW"
+    assert warning.status == "FAIL"
+
+
+def test_government_warning_whitespace_only_vs_missing_fails() -> None:
+    expected = ApplicationData(government_warning="   ")
+    found = ApplicationData(government_warning=None)
+
+    result = compare_labels(expected, found)
+    warning = result_for(result, "government_warning")
+
+    assert result.overall_verdict == "NEEDS_REVIEW"
+    assert warning.status == "FAIL"
+
+
+def test_government_warning_extra_internal_whitespace_still_passes() -> None:
+    expected = ApplicationData(government_warning=GOVERNMENT_WARNING)
+    found = ApplicationData(
+        government_warning=re.sub(r" ", "  ", GOVERNMENT_WARNING),
+    )
+
+    result = compare_labels(expected, found)
+    warning = result_for(result, "government_warning")
+
+    assert result.overall_verdict == "APPROVED"
+    assert warning.status == "PASS"
+
+
+def test_abv_bare_number_without_percent_or_context_still_matches() -> None:
+    expected = ApplicationData(
+        abv="45%",
+        government_warning=GOVERNMENT_WARNING,
+    )
+    found = ApplicationData(
+        abv="45",
+        government_warning=GOVERNMENT_WARNING,
+    )
+
+    result = compare_labels(expected, found)
+    abv = result_for(result, "abv")
+
+    assert result.overall_verdict == "APPROVED"
+    assert abv.status == "PASS"
+
+
+def test_net_contents_fl_oz_normalizes_to_ml() -> None:
+    expected = ApplicationData(
+        net_contents="25.36 fl oz",
+        government_warning=GOVERNMENT_WARNING,
+    )
+    found = ApplicationData(
+        net_contents="750 mL",
+        government_warning=GOVERNMENT_WARNING,
+    )
+
+    result = compare_labels(expected, found)
+    net_contents = result_for(result, "net_contents")
+
+    assert result.overall_verdict == "APPROVED"
+    assert net_contents.status == "PASS"
+
+
+def test_country_of_origin_synonym_beyond_united_states() -> None:
+    expected = ApplicationData(
+        country_of_origin="UK",
+        government_warning=GOVERNMENT_WARNING,
+    )
+    found = ApplicationData(
+        country_of_origin="United Kingdom",
+        government_warning=GOVERNMENT_WARNING,
+    )
+
+    result = compare_labels(expected, found)
+    country = result_for(result, "country_of_origin")
+
+    assert result.overall_verdict == "APPROVED"
+    assert country.status == "PASS"
+
+
+def test_fuzzy_field_matches_regardless_of_word_order() -> None:
+    expected = ApplicationData(
+        producer="Acme Reserve Cellars",
+        government_warning=GOVERNMENT_WARNING,
+    )
+    found = ApplicationData(
+        producer="Reserve Cellars Acme",
+        government_warning=GOVERNMENT_WARNING,
+    )
+
+    result = compare_labels(expected, found)
+    producer = result_for(result, "producer")
+
+    assert result.overall_verdict == "APPROVED"
+    assert producer.status == "PASS"

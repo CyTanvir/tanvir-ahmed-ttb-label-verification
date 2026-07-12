@@ -170,7 +170,7 @@ async def verify_label_batch(
     latency_ms = round((perf_counter() - started_at) * 1000, 3)
     return BatchVerificationResult(
         summary=_summarize_batch(labels),
-        labels=list(labels),
+        items=list(labels),
         latency_ms=latency_ms,
     )
 
@@ -244,9 +244,8 @@ def _verify_uploaded_label(
 def _summarize_batch(labels: list[BatchLabelResult]) -> BatchSummary:
     return BatchSummary(
         total=len(labels),
-        approved=sum(1 for label in labels if label.status == "APPROVED"),
-        needs_review=sum(1 for label in labels if label.status == "NEEDS_REVIEW"),
-        errors=sum(1 for label in labels if label.status == "ERROR"),
+        passed=sum(1 for label in labels if label.status == "APPROVED"),
+        needs_review=sum(1 for label in labels if label.status != "APPROVED"),
     )
 
 

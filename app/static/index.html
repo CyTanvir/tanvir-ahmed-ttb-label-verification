@@ -975,13 +975,14 @@
         placeholderPanel.classList.add("hidden");
 
         const summary = batch.summary || {};
+        const items = batch.items || [];
         const total = Number(summary.total || 0);
-        const approved = Number(summary.approved || 0);
+        const passed = Number(summary.passed || 0);
         const needsReview = Number(summary.needs_review || 0);
-        const errors = Number(summary.errors || 0);
+        const errors = items.filter((item) => item.status === "ERROR").length;
 
         summaryTotal.textContent = String(total);
-        summaryApproved.textContent = String(approved);
+        summaryApproved.textContent = String(passed);
         summaryReview.textContent = String(needsReview);
         summaryErrors.textContent = String(errors);
         batchLatency.textContent =
@@ -990,11 +991,11 @@
             : "";
         summaryPanel.classList.add("visible");
 
-        const hasProblems = needsReview > 0 || errors > 0;
+        const hasProblems = needsReview > 0;
         setStatus(hasProblems ? "error" : "ok", hasProblems ? "Needs Review" : "All Approved");
         focusWithoutJump(summaryPanel);
 
-        for (const [index, label] of (batch.labels || []).entries()) {
+        for (const [index, label] of items.entries()) {
           resultsList.appendChild(createBatchLabelCard(label, index));
         }
       }

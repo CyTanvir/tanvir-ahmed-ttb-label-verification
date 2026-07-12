@@ -13,11 +13,12 @@ from app.models import (
 )
 
 
-DEFAULT_FUZZY_THRESHOLD = 0.85
+DEFAULT_FUZZY_THRESHOLD = 0.90
 ABV_TOLERANCE = 0.1
 NET_CONTENTS_ML_TOLERANCE = 1.0
 FUZZY_FIELDS = frozenset({"brand_name", "class_type", "producer"})
 GOVERNMENT_WARNING_FIELD = "government_warning"
+FLUID_OUNCE_TO_ML = 29.5735
 UNIT_TO_ML = {
     "ml": 1.0,
     "milliliter": 1.0,
@@ -30,12 +31,47 @@ UNIT_TO_ML = {
     "cl": 10.0,
     "centiliter": 10.0,
     "centiliters": 10.0,
+    "floz": FLUID_OUNCE_TO_ML,
+    "fluidounce": FLUID_OUNCE_TO_ML,
+    "fluidounces": FLUID_OUNCE_TO_ML,
+    "oz": FLUID_OUNCE_TO_ML,
+    "ounce": FLUID_OUNCE_TO_ML,
+    "ounces": FLUID_OUNCE_TO_ML,
 }
 COUNTRY_SYNONYMS = {
     "usa": "united states",
     "us": "united states",
     "unitedstates": "united states",
     "unitedstatesofamerica": "united states",
+    "uk": "united kingdom",
+    "gb": "united kingdom",
+    "greatbritain": "united kingdom",
+    "unitedkingdom": "united kingdom",
+    "fr": "france",
+    "france": "france",
+    "it": "italy",
+    "italia": "italy",
+    "italy": "italy",
+    "es": "spain",
+    "espana": "spain",
+    "espaa": "spain",
+    "spain": "spain",
+    "de": "germany",
+    "deutschland": "germany",
+    "germany": "germany",
+    "pt": "portugal",
+    "portugal": "portugal",
+    "au": "australia",
+    "aus": "australia",
+    "australia": "australia",
+    "nz": "new zealand",
+    "newzealand": "new zealand",
+    "ar": "argentina",
+    "argentina": "argentina",
+    "cl": "chile",
+    "chile": "chile",
+    "za": "south africa",
+    "southafrica": "south africa",
 }
 
 
@@ -103,7 +139,7 @@ def _compare_field(
             "exact_case_sensitive",
             expected,
             found,
-            _same_or_both_missing(expected, found),
+            _government_warning_matches(expected, found),
         )
 
     strategies: Mapping[str, Callable[[str | None, str | None], bool]] = {
@@ -152,10 +188,14 @@ def _match_type_for_field(field: str) -> MatchType:
     raise ValueError(f"Unsupported comparison field: {field}")
 
 
-def _same_or_both_missing(expected: str | None, found: str | None) -> bool:
-    if _is_missing(expected) and _is_missing(found):
-        return True
-    return expected == found
+def _government_warning_matches(expected: str | None, found: str | None) -> bool:
+    if _is_missing(expected) or _is_missing(found):
+        return False
+    return _collapse_whitespace(expected) == _collapse_whitespace(found)
+
+
+def _collapse_whitespace(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def _fuzzy_matches(
@@ -178,7 +218,19 @@ def _fuzzy_matches(
         return True
 
     score = SequenceMatcher(None, expected_normalized, found_normalized).ratio()
-    return score >= threshold
+    if score >= threshold:
+        return True
+
+    sorted_expected = _token_sort(expected_normalized)
+    sorted_found = _token_sort(found_normalized)
+    if sorted_expected == sorted_found:
+        return True
+    sorted_score = SequenceMatcher(None, sorted_expected, sorted_found).ratio()
+    return sorted_score >= threshold
+
+
+def _token_sort(value: str) -> str:
+    return " ".join(sorted(value.split()))
 
 
 def _abv_matches(expected: str | None, found: str | None) -> bool:
@@ -236,16 +288,19 @@ def _extract_net_contents_ml(value: str | None) -> float | None:
         return None
 
     normalized = normalize_text(value)
+    normalized = re.sub(r"(?<!\d)\.(?!\d)", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
     match = re.search(
         r"(\d+(?:\.\d+)?)\s*"
-        r"(milliliters?|ml|liters?|litres?|l|centiliters?|cl)\b",
+        r"(fluid\s*ounces?|fl\s*oz|floz|milliliters?|ml|liters?|litres?|l|"
+        r"centiliters?|cl|ounces?|oz)\b",
         normalized,
     )
     if match is None:
         return None
 
     amount = float(match.group(1))
-    unit = match.group(2)
+    unit = re.sub(r"[^a-z]", "", match.group(2))
     return amount * UNIT_TO_ML[unit]
 
 

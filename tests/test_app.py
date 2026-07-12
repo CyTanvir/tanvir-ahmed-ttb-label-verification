@@ -207,24 +207,23 @@ def test_verify_batch_returns_ordered_summary_and_results() -> None:
 
     assert response.status_code == 200
     data = response.json()
-    assert set(data) == {"summary", "labels", "latency_ms"}
+    assert set(data) == {"summary", "items", "latency_ms"}
     assert data["summary"] == {
         "total": 3,
-        "approved": 3,
+        "passed": 3,
         "needs_review": 0,
-        "errors": 0,
     }
-    assert [label["filename"] for label in data["labels"]] == [
+    assert [label["filename"] for label in data["items"]] == [
         "front.png",
         "back.png",
         "neck.png",
     ]
-    assert [label["status"] for label in data["labels"]] == [
+    assert [label["status"] for label in data["items"]] == [
         "APPROVED",
         "APPROVED",
         "APPROVED",
     ]
-    assert all(label["result"]["overall_verdict"] == "APPROVED" for label in data["labels"])
+    assert all(label["result"]["overall_verdict"] == "APPROVED" for label in data["items"])
     assert sorted(call["filename"] for call in service.calls) == [
         "back.png",
         "front.png",
@@ -261,18 +260,17 @@ def test_verify_batch_summarizes_approved_review_and_error_results() -> None:
     data = response.json()
     assert data["summary"] == {
         "total": 3,
-        "approved": 1,
-        "needs_review": 1,
-        "errors": 1,
+        "passed": 1,
+        "needs_review": 2,
     }
-    assert [label["status"] for label in data["labels"]] == [
+    assert [label["status"] for label in data["items"]] == [
         "APPROVED",
         "NEEDS_REVIEW",
         "ERROR",
     ]
-    assert data["labels"][1]["result"]["overall_verdict"] == "NEEDS_REVIEW"
-    assert data["labels"][2]["result"] is None
-    assert data["labels"][2]["error"] == "Unsupported image type: application/octet-stream."
+    assert data["items"][1]["result"]["overall_verdict"] == "NEEDS_REVIEW"
+    assert data["items"][2]["result"] is None
+    assert data["items"][2]["error"] == "Unsupported image type: application/octet-stream."
 
 
 def test_verify_batch_reports_empty_file_as_item_error() -> None:
@@ -295,12 +293,11 @@ def test_verify_batch_reports_empty_file_as_item_error() -> None:
     data = response.json()
     assert data["summary"] == {
         "total": 2,
-        "approved": 1,
-        "needs_review": 0,
-        "errors": 1,
+        "passed": 1,
+        "needs_review": 1,
     }
-    assert data["labels"][1]["status"] == "ERROR"
-    assert data["labels"][1]["error"] == "label_image must not be empty."
+    assert data["items"][1]["status"] == "ERROR"
+    assert data["items"][1]["error"] == "label_image must not be empty."
     assert len(service.calls) == 1
 
 
@@ -336,5 +333,5 @@ def test_verify_batch_runs_extractions_concurrently() -> None:
         clear_overrides()
 
     assert response.status_code == 200
-    assert response.json()["summary"]["approved"] == 3
+    assert response.json()["summary"]["passed"] == 3
     assert service.max_active >= 2
