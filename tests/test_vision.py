@@ -2,16 +2,14 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.models import ExtractedLabel
-from app.vision import (
-    FakeVisionService,
-    ImagePreprocessor,
-    OpenAIVisionService,
+from app.errors import (
     VisionParsingError,
     VisionPreprocessingError,
     VisionServiceConfigurationError,
-    parse_extracted_label_response,
 )
+from app.models import ExtractedLabel
+from app.vision import FakeVisionService, OpenAIVisionService
+from app.vision_helpers import ImagePreprocessor, parse_extracted_label_response
 
 
 SAMPLE_PNG_BYTES = (

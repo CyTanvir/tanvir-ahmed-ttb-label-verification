@@ -4,9 +4,10 @@ import time
 
 from fastapi.testclient import TestClient
 
+from app.errors import VisionPreprocessingError
 from app.main import app, get_openai_vision_service, get_vision_service_factory
 from app.models import ExtractedLabel
-from app.vision import FakeVisionService, VisionPreprocessingError
+from app.vision import FakeVisionService
 
 
 client = TestClient(app)
@@ -61,24 +62,34 @@ def test_frontend_loads_batch_label_verification_page() -> None:
 
     assert response.status_code == 200
     assert "TTB Label Verification" in response.text
+    assert '<link rel="stylesheet" href="styles.css" />' in response.text
+    assert '<script src="app.js"></script>' in response.text
     assert '<form id="verify-form" class="panel form-panel" novalidate>' in response.text
-    assert 'const BATCH_VERIFY_ENDPOINT = "/verify/batch";' in response.text
-    assert "const MAX_IMAGE_BYTES = 12 * 1000 * 1000;" in response.text
-    assert 'new Set(["image/png", "image/jpeg", "image/webp"])' in response.text
     assert 'name="label_images"' in response.text
     assert 'aria-describedby="file-name file-error"' in response.text
     assert 'aria-invalid="false"' in response.text
     assert "multiple" in response.text
-    assert 'payload.append("label_images"' in response.text
-    assert 'payload.append("application_data"' in response.text
     for field in APPLICATION_DATA:
         assert f'name="{field}"' in response.text
-    assert "overall_verdict" in response.text
-    assert "summary" in response.text
     assert "Verification Error" in response.text
     assert 'id="results-area" class="results-area" aria-live="polite" aria-busy="false"' in response.text
     assert 'aria-label="Verification progress"' in response.text
-    assert 'focusWithoutJump(summaryPanel)' in response.text
+
+
+def test_frontend_static_assets_are_served() -> None:
+    css_response = client.get("/styles.css")
+    js_response = client.get("/app.js")
+
+    assert css_response.status_code == 200
+    assert ":root {" in css_response.text
+
+    assert js_response.status_code == 200
+    assert 'const BATCH_VERIFY_ENDPOINT = "/verify/batch";' in js_response.text
+    assert "const MAX_IMAGE_BYTES = 12 * 1000 * 1000;" in js_response.text
+    assert "overall_verdict" in js_response.text
+    assert 'payload.append("label_images"' in js_response.text
+    assert 'payload.append("application_data"' in js_response.text
+    assert "focusWithoutJump(summaryPanel)" in js_response.text
 
 
 def test_default_vision_service_factory_reuses_cached_service(monkeypatch) -> None:
@@ -90,7 +101,7 @@ def test_default_vision_service_factory_reuses_cached_service(monkeypatch) -> No
         calls += 1
         return service
 
-    monkeypatch.setattr("app.main.OpenAIVisionService.from_env", build_service)
+    monkeypatch.setattr("app.routes.OpenAIVisionService.from_env", build_service)
     get_openai_vision_service.cache_clear()
 
     try:
