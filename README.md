@@ -295,29 +295,32 @@ Note the `-m scripts.benchmark_latency` form — the script imports a helper fro
 `scripts/live_demo_check.py`, so it must run as a module, not
 `python scripts/benchmark_latency.py`.
 
-**Last measured 2026-07-12, n=25 requests:**
+**Before the fix** (2026-07-12, n=25): `min=2166ms p50=3017ms p95=6749ms
+max=8328ms`. p50 was comfortably inside the 5-second target; **p95 and max
+were not** — 2 of the 25 requests took 7.4s and 8.3s. Root cause:
+`OpenAIVisionService` built its client as `OpenAI(api_key=...,
+timeout=timeout_seconds)` without setting `max_retries`, so the SDK's default
+(`max_retries=2`) was active. A single attempt is bounded by
+`OPENAI_TIMEOUT_SECONDS` (default `4.25`), so any call over ~4.3s is provably
+at least two attempts — a timed-out/retryable first attempt, an SDK backoff
+sleep, then a second attempt.
+
+**Fixed**: the client is now built with `max_retries=0` (`app/vision.py`), so
+a `/verify` call either succeeds within one `OPENAI_TIMEOUT_SECONDS` window or
+fails fast with a `502`/`503` instead of silently retrying past the 5-second
+budget.
+
+**After the fix** (2026-07-12, n=25, same live URL, redeployed):
 
 | Stat | Value |
 | --- | --- |
-| min | 2166 ms |
-| p50 | 3017 ms |
-| p95 | 6749 ms |
-| max | 8328 ms |
+| min | 2268 ms |
+| p50 | 2837 ms |
+| p95 | 3822 ms |
+| max | 3926 ms |
 
-p50 was comfortably inside the 5-second target; **p95 and max were not** — 2 of
-the 25 requests took 7.4s and 8.3s. Root cause: `OpenAIVisionService` built its
-client as `OpenAI(api_key=..., timeout=timeout_seconds)` without setting
-`max_retries`, so the SDK's default (`max_retries=2`) was active. A single
-attempt is bounded by `OPENAI_TIMEOUT_SECONDS` (default `4.25`), so any call
-over ~4.3s is provably at least two attempts — a timed-out/retryable first
-attempt, an SDK backoff sleep, then a second attempt. **Fixed**: the client is
-now built with `max_retries=0` (`app/vision.py`), so a `/verify` call either
-succeeds within one `OPENAI_TIMEOUT_SECONDS` window or fails fast with a
-`502`/`503` instead of silently retrying past the 5-second budget.
-
-The numbers above predate that fix and were not re-measured against a redeploy
-yet — rerun `scripts/benchmark_latency.py` against the live URL after
-redeploying to confirm the new p95.
+All four stats, including p95 and max, are now comfortably inside the
+5-second target.
 
 **Cold start:** `app/main.py`'s `lifespan` hook calls
 `OpenAIVisionService.warm_up()` once at process startup (a throwaway
