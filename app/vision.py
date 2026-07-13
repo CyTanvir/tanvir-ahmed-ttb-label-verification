@@ -190,7 +190,10 @@ class OpenAIVisionService:
                 "Install project dependencies from requirements.txt."
             ) from exc
 
-        return OpenAI(api_key=api_key, timeout=timeout_seconds)
+        # max_retries=0: the SDK default (2) retries a timed-out/5xx/429 first
+        # attempt with backoff, which can push a single /verify call well past
+        # the 5-second hard requirement. Fail fast instead of retrying slow.
+        return OpenAI(api_key=api_key, timeout=timeout_seconds, max_retries=0)
 
 
 class FakeVisionService:

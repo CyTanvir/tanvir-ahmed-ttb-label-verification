@@ -4,6 +4,52 @@ Proof-of-concept TTB alcohol label verification app. The backend is Python 3.12
 and FastAPI, the frontend is plain HTML/CSS/JavaScript, extraction uses a vision
 model, and the app is stateless with no database.
 
+## What the App Does
+
+Given a label photo and the application data submitted for that product, the
+app extracts the same seven fields from the image with a vision model and
+compares each one against what was submitted:
+
+`brand_name`, `class_type`, `abv`, `net_contents`, `producer`,
+`country_of_origin`, `government_warning`
+
+Each field gets its own PASS/FAIL (see [Comparison Rules](#comparison-rules) for
+the matching strategy per field). The overall verdict follows one rule:
+**`APPROVED` when every field passes, otherwise `NEEDS_REVIEW`.** Nothing is
+auto-rejected outright — `NEEDS_REVIEW` means a human should look at the
+per-field diffs before approving the label.
+
+## Architecture at a Glance
+
+```
+label image + application data
+        |
+        v
+  app/routes.py            API layer: POST /verify, POST /verify/batch
+        |
+        v
+  app/vision.py       -->  app/vision_helpers.py
+  OpenAIVisionService       ImagePreprocessor, model-response parsing
+        |
+        v
+  extracted label (7 fields)
+        |
+        v
+  app/comparison.py         per-field match rules -> overall verdict
+        |
+        v
+  VerificationResult (APPROVED / NEEDS_REVIEW)
+```
+
+| Module | Responsibility |
+| --- | --- |
+| `app/main.py` | FastAPI app factory, lifespan vision-model warm-up, `/health`, static file mount. |
+| `app/routes.py` | API layer: `/verify` and `/verify/batch`, request parsing, batch concurrency. |
+| `app/vision.py` | Vision service: `OpenAIVisionService` (real) and `FakeVisionService` (tests). |
+| `app/vision_helpers.py` | `ImagePreprocessor` (resize/recompress/EXIF-normalize) and model-response parsing. |
+| `app/comparison.py` | Comparison engine: per-field match strategies and the overall verdict rule. |
+| `app/models.py` | Pydantic request/response schemas, including `LABEL_FIELD_NAMES`. |
+
 ## Requirements Guardrails
 
 - Single-label verification must complete in under 5 seconds.
@@ -16,18 +62,18 @@ model, and the app is stateless with no database.
 
 Copy `.env.example` for local use, but never commit a real `.env` file.
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `OPENAI_API_KEY` | Yes for real extraction | Vision model API key. Leave blank in examples and commits. |
-| `OPENAI_VISION_MODEL` | No | Vision-capable model name used by `OpenAIVisionService`. |
-| `OPENAI_TIMEOUT_SECONDS` | No | Per-request model timeout. Keep tuned for the 5-second single-label target. |
-| `OPENAI_REASONING_EFFORT` | No | Optional reasoning effort value. Blank means omit it from requests. |
-| `OPENAI_IMAGE_DETAIL` | No | Image detail sent to the vision model. Defaults to `low`. |
-| `OPENAI_MAX_OUTPUT_TOKENS` | No | Output token cap for extraction responses. |
-| `IMAGE_MAX_SIDE` | No | Largest image side after preprocessing. |
-| `IMAGE_MAX_BYTES` | No | Maximum preprocessed image payload size. |
-| `MAX_BATCH_LABELS` | No | Per-request cap on images accepted by `/verify/batch`. Defaults to `10`. |
-| `MAX_BATCH_CONCURRENCY` | No | Max concurrent extractions within one batch request. Defaults to `4`. |
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `OPENAI_API_KEY` | Yes for real extraction | *(none)* | Vision model API key. Leave blank in examples and commits. |
+| `OPENAI_VISION_MODEL` | No | `gpt-4.1-mini` | Vision-capable model name used by `OpenAIVisionService`. |
+| `OPENAI_TIMEOUT_SECONDS` | No | `4.25` | Per-request model timeout. Keep tuned for the 5-second single-label target. |
+| `OPENAI_REASONING_EFFORT` | No | *(blank, omitted)* | Optional reasoning effort value. Blank means omit it from requests. |
+| `OPENAI_IMAGE_DETAIL` | No | `low` | Image detail sent to the vision model. |
+| `OPENAI_MAX_OUTPUT_TOKENS` | No | `300` | Output token cap for extraction responses. |
+| `IMAGE_MAX_SIDE` | No | `1280` | Largest image side, in pixels, after preprocessing. |
+| `IMAGE_MAX_BYTES` | No | `1000000` | Maximum preprocessed image payload size, in bytes. |
+| `MAX_BATCH_LABELS` | No | `10` | Per-request cap on images accepted by `/verify/batch`. |
+| `MAX_BATCH_CONCURRENCY` | No | `4` | Max concurrent extractions within one batch request. |
 
 ## Model
 
@@ -114,11 +160,24 @@ $env:OPENAI_API_KEY="your-key-here"
 - Multipart file `label_image`: one PNG, JPEG, or WebP label image.
 - Returns one `VerificationResult` with per-field results and `latency_ms`.
 
+```bash
+curl -X POST https://ttb-label-verification-production-ab6b.up.railway.app/verify \
+  -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
+  -F 'label_image=@scripts/sample_label.png;type=image/png'
+```
+
 `POST /verify/batch`
 
 - Multipart field `application_data`: same JSON object used by `/verify`.
 - Multipart files `label_images`: one to ten PNG, JPEG, or WebP images.
 - Returns a batch summary plus ordered per-label results.
+
+```bash
+curl -X POST https://ttb-label-verification-production-ab6b.up.railway.app/verify/batch \
+  -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
+  -F 'label_images=@label_front.png;type=image/png' \
+  -F 'label_images=@label_back.jpg;type=image/jpeg'
+```
 
 Application fields:
 
@@ -133,6 +192,55 @@ Application fields:
   "government_warning": "GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."
 }
 ```
+
+A successful `/verify` response (`VerificationResult`):
+
+```json
+{
+  "results": [
+    {"field": "brand_name", "match_type": "fuzzy", "expected": "Example Estate", "found": "Example Estate", "status": "PASS"},
+    {"field": "class_type", "match_type": "fuzzy", "expected": "Cabernet Sauvignon", "found": "Cabernet Sauvignon", "status": "PASS"},
+    {"field": "abv", "match_type": "abv_numeric_tolerance", "expected": "13.5% alc/vol", "found": "13.5%", "status": "PASS"},
+    {"field": "net_contents", "match_type": "net_contents_ml", "expected": "750 mL", "found": "750mL", "status": "PASS"},
+    {"field": "producer", "match_type": "fuzzy", "expected": "Example Wine Co.", "found": "Example Wine Company", "status": "PASS"},
+    {"field": "country_of_origin", "match_type": "country_synonym", "expected": "USA", "found": "United States", "status": "PASS"},
+    {"field": "government_warning", "match_type": "exact_case_sensitive", "expected": "GOVERNMENT WARNING: ...", "found": "GOVERNMENT WARNING: ...", "status": "PASS"}
+  ],
+  "overall_verdict": "APPROVED",
+  "latency_ms": 2905.4
+}
+```
+
+A 422 error response, when `application_data` fails field validation (from
+`_parse_application_data` in `app/routes.py`):
+
+```json
+{
+  "detail": {
+    "message": "application_data contains invalid field values.",
+    "errors": [
+      {
+        "type": "string_type",
+        "loc": ["abv"],
+        "msg": "Input should be a valid string",
+        "input": 13.5
+      }
+    ]
+  }
+}
+```
+
+## Comparison Rules
+
+Every field uses one of five match strategies, applied in `app/comparison.py`:
+
+| Field(s) | Strategy | Rule |
+| --- | --- | --- |
+| `brand_name`, `class_type`, `producer` | `fuzzy` | Normalized (casefold, punctuation-stripped), then similarity-ratio match with threshold `0.90` (`DEFAULT_FUZZY_THRESHOLD`). Falls back to a token-sorted comparison so word order doesn't cause a false FAIL. |
+| `abv` | `abv_numeric_tolerance` | Percent value is parsed out of either field (handles `%`, "alc/vol", or "proof"), then compared with tolerance ±`0.1` (`ABV_TOLERANCE`). |
+| `net_contents` | `net_contents_ml` | Value is normalized to milliliters (supports mL, L, cL, fl oz, oz) and compared with tolerance ±`1.0` mL (`NET_CONTENTS_ML_TOLERANCE`). |
+| `country_of_origin` | `country_synonym` | Normalized and mapped through a synonym table (e.g. `USA`/`US` &rarr; `united states`, `UK`/`GB` &rarr; `united kingdom`) before comparing. |
+| `government_warning` | `exact_case_sensitive` | Whitespace is collapsed on both sides, then compared as an **exact, case-sensitive** string — no fuzzy matching, per the hard requirement. |
 
 ## Deploy To Railway
 
@@ -170,6 +278,112 @@ The script verifies:
 - A government warning with different capitalization fails with
   `match_type=exact_case_sensitive`.
 - An imperfect, degraded image still returns a usable verification result.
+
+## Performance
+
+Target: single-label `/verify` under 5 seconds wall time.
+
+Measured against the **deployed** Railway URL (not local) with
+`scripts/benchmark_latency.py`, which sends sequential `/verify` requests using
+`scripts/sample_label.png` and times each one end-to-end:
+
+```bash
+python -m scripts.benchmark_latency <live-url> --requests 25
+```
+
+Note the `-m scripts.benchmark_latency` form — the script imports a helper from
+`scripts/live_demo_check.py`, so it must run as a module, not
+`python scripts/benchmark_latency.py`.
+
+**Last measured 2026-07-12, n=25 requests:**
+
+| Stat | Value |
+| --- | --- |
+| min | 2166 ms |
+| p50 | 3017 ms |
+| p95 | 6749 ms |
+| max | 8328 ms |
+
+p50 was comfortably inside the 5-second target; **p95 and max were not** — 2 of
+the 25 requests took 7.4s and 8.3s. Root cause: `OpenAIVisionService` built its
+client as `OpenAI(api_key=..., timeout=timeout_seconds)` without setting
+`max_retries`, so the SDK's default (`max_retries=2`) was active. A single
+attempt is bounded by `OPENAI_TIMEOUT_SECONDS` (default `4.25`), so any call
+over ~4.3s is provably at least two attempts — a timed-out/retryable first
+attempt, an SDK backoff sleep, then a second attempt. **Fixed**: the client is
+now built with `max_retries=0` (`app/vision.py`), so a `/verify` call either
+succeeds within one `OPENAI_TIMEOUT_SECONDS` window or fails fast with a
+`502`/`503` instead of silently retrying past the 5-second budget.
+
+The numbers above predate that fix and were not re-measured against a redeploy
+yet — rerun `scripts/benchmark_latency.py` against the live URL after
+redeploying to confirm the new p95.
+
+**Cold start:** `app/main.py`'s `lifespan` hook calls
+`OpenAIVisionService.warm_up()` once at process startup (a throwaway
+`responses.create` call) specifically so the first real user request doesn't
+pay for provisioning the model server-side. Railway itself does not spin
+containers down between requests on a paid/always-on plan, so once the container
+is up there is no per-request cold start beyond ordinary latency variance.
+
+## Assumptions
+
+- Label images are legible, right-side-up or EXIF-oriented, and photographed
+  well enough for a vision model to read (the app does not attempt OCR
+  correction or manual rotation).
+- `application_data` submitted to the API is trusted, well-formed input — there
+  is no adversarial-input hardening beyond standard JSON/Pydantic validation.
+- The deployment environment has outbound network access to the OpenAI API and
+  a valid `OPENAI_API_KEY` is configured before any `/verify` request is made.
+- One API key is shared across all requests; there is no per-user or per-tenant
+  key management.
+- Labels are in English; extraction prompts and comparison rules are not
+  localized.
+
+## Limitations
+
+- No persistence — nothing is stored between requests; there is no history of
+  past verifications.
+- No authentication or authorization on any endpoint.
+- No OCR fallback if the vision model is unavailable or misconfigured; a
+  `/verify` request in that state returns a `503`/`502` rather than degrading.
+- Batch upload is capped at `MAX_BATCH_LABELS` (default 10) images per request,
+  with at most `MAX_BATCH_CONCURRENCY` (default 4) extractions running at once.
+- A transient vision-API failure (timeout, rate limit, 5xx) is not retried
+  (`max_retries=0`, see [Performance](#performance)) — it surfaces as a
+  `502`/`503` on `/verify`, or a per-item `ERROR` in `/verify/batch`, rather
+  than quietly succeeding on a second attempt.
+
+## Tradeoffs
+
+| Decision | Reason |
+| --- | --- |
+| Batch cap of 10 images, 4 concurrent | Bounds per-request OpenAI usage and cost; a proof-of-concept doesn't need unbounded batches. |
+| One shared fuzzy threshold (`0.90`) for all fuzzy fields, not per-field tuning | Keeps the comparison engine simple; per-field thresholds would need labeled data to tune correctly. |
+| OpenAI vision model instead of a traditional OCR pipeline | Meets the 5-second budget with higher accuracy on varied label layouts, at the cost of a paid external dependency and network reliance. |
+| Stateless, no database | Matches the hard "no persistence" requirement and simplifies the free-tier deploy; means no audit trail of past verifications. |
+| `gpt-4.1-mini` over `gpt-4o-mini` / `gpt-4.1-nano` | See [Model](#model) — chosen for the most reliable verbatim capture of the government warning field within the latency budget. |
+| OpenAI SDK's `max_retries=0` (SDK default is 2) | A retried timeout/429/5xx was the confirmed cause of the p95/max latency tail exceeding 5s (see [Performance](#performance)); trades a slightly higher outright failure rate for a bounded, predictable single-attempt latency, in line with the hard 5-second requirement. |
+
+## Approach / Tools
+
+Built with an AI pair-programming workflow: [Codex](https://openai.com/codex)
+writing code under a **Plan / Review / Execute** cadence defined in
+[AGENTS.md](AGENTS.md).
+
+- **PLAN** — propose an approach and list files/risks; no code written.
+- **REVIEW** — critique that plan against the hard requirements and edge cases,
+  then finalize it.
+- **EXECUTE** — implement exactly the approved plan, with tests, then report
+  how to verify it.
+
+Each phase was scoped to a single unit of work and reviewed before the next one
+started, visible directly in git history as one commit per phase (`Phase 1
+complete` through `Phase 7 complete`, followed by targeted fix/polish/refactor
+commits). Nearly all source under `app/`, `scripts/`, and `tests/` was
+AI-generated within that loop; human involvement was setting the hard
+requirements up front (in `AGENTS.md`) and reviewing/approving each phase
+before execution, rather than hand-writing implementation code.
 
 ## Secret Audit
 

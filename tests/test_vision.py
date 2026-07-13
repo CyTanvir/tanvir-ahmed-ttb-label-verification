@@ -157,6 +157,12 @@ def test_openai_service_uses_tuned_stateless_request() -> None:
     assert "reasoning" not in request
 
 
+def test_openai_service_disables_sdk_retries() -> None:
+    service = OpenAIVisionService(api_key="test-key")
+
+    assert service._client.max_retries == 0
+
+
 def test_openai_service_rejects_invalid_image_detail() -> None:
     with pytest.raises(VisionServiceConfigurationError):
         OpenAIVisionService(
