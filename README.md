@@ -19,6 +19,13 @@ the matching strategy per field). The overall verdict follows one rule:
 auto-rejected outright — `NEEDS_REVIEW` means a human should look at the
 per-field diffs before approving the label.
 
+## Live Demo Check
+
+After deployment, run the repeatable end-to-end check against the public URL.
+
+**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
+**Last verified end-to-end (all 5 checks passing):** 2026-07-12
+
 ## Architecture at a Glance
 
 ```
@@ -257,13 +264,6 @@ railway domain
 Set `OPENAI_API_KEY` and any optional model tuning values as Railway environment
 variables before running a live demo. Do not put real keys in `.env.example`,
 README examples, source files, tests, or screenshots.
-
-## Live Demo Check
-
-After deployment, run the repeatable end-to-end check against the public URL.
-
-**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
-**Last verified end-to-end (all 5 checks passing):** 2026-07-12
 
 macOS/Linux: `.venv/bin/python scripts/live_demo_check.py <live-url>`
 Windows: `.\.venv\Scripts\python.exe scripts\live_demo_check.py <live-url>`
