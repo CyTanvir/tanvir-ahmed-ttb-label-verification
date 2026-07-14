@@ -19,6 +19,10 @@ the matching strategy per field). The overall verdict follows one rule:
 auto-rejected outright — `NEEDS_REVIEW` means a human should look at the
 per-field diffs before approving the label.
 
+## Live URL
+
+**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
+
 ## Architecture at a Glance
 
 ```
