@@ -19,12 +19,9 @@ the matching strategy per field). The overall verdict follows one rule:
 auto-rejected outright — `NEEDS_REVIEW` means a human should look at the
 per-field diffs before approving the label.
 
-## Live Demo Check
-
-After deployment, run the repeatable end-to-end check against the public URL.
+## Live URL
 
 **Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
-**Last verified end-to-end (all 5 checks passing):** 2026-07-12
 
 ## Architecture at a Glance
 
@@ -265,6 +262,13 @@ Set `OPENAI_API_KEY` and any optional model tuning values as Railway environment
 variables before running a live demo. Do not put real keys in `.env.example`,
 README examples, source files, tests, or screenshots.
 
+## Live Demo Check
+
+After deployment, run the repeatable end-to-end check against the public URL.
+
+**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
+**Last verified end-to-end (all 5 checks passing):** 2026-07-12
+
 macOS/Linux: `.venv/bin/python scripts/live_demo_check.py <live-url>`
 Windows: `.\.venv\Scripts\python.exe scripts\live_demo_check.py <live-url>`
 
@@ -356,6 +360,10 @@ is up there is no per-request cold start beyond ordinary latency variance.
   (`max_retries=0`, see [Performance](#performance)) — it surfaces as a
   `502`/`503` on `/verify`, or a per-item `ERROR` in `/verify/batch`, rather
   than quietly succeeding on a second attempt.
+- The `producer` field captures the bottler/producer/importer **name** only.
+  TTB labels also require a street address for this field, but it is not
+  extracted or compared — a label with a wrong or missing address does not by
+  itself fail verification.
 
 ## Tradeoffs
 
