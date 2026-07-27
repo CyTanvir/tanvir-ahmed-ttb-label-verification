@@ -21,11 +21,14 @@ per-field diffs before approving the label.
 
 ## Live URL
 
-**Live URL:** _pending Render redeploy — see [Deploy To Render](#deploy-to-render)_
+**Live URL:** https://ttb-label-verification-99tf.onrender.com
 
 Previously hosted at `https://ttb-label-verification-production-ab6b.up.railway.app`
 on Railway. That trial expired and the account will not be reactivated, so the
-app is being redeployed on Render's free tier instead.
+app now runs on Render's free tier instead. Because the free tier spins down
+after ~15 minutes of inactivity, the first request after idle time can be
+slow (or occasionally fail — see [Deploy To Render](#deploy-to-render) and
+[Performance](#performance)); it recovers on retry.
 
 ## Architecture at a Glance
 
@@ -169,7 +172,7 @@ $env:OPENAI_API_KEY="your-key-here"
 - Returns one `VerificationResult` with per-field results and `latency_ms`.
 
 ```bash
-curl -X POST https://<your-render-service>.onrender.com/verify \
+curl -X POST https://ttb-label-verification-99tf.onrender.com/verify \
   -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
   -F 'label_image=@scripts/sample_label.png;type=image/png'
 ```
@@ -181,7 +184,7 @@ curl -X POST https://<your-render-service>.onrender.com/verify \
 - Returns a batch summary plus ordered per-label results.
 
 ```bash
-curl -X POST https://<your-render-service>.onrender.com/verify/batch \
+curl -X POST https://ttb-label-verification-99tf.onrender.com/verify/batch \
   -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
   -F 'label_images=@label_front.png;type=image/png' \
   -F 'label_images=@label_back.jpg;type=image/jpeg'
@@ -283,9 +286,13 @@ requests while the service is warm stay within budget as before.
 
 After deployment, run the repeatable end-to-end check against the public URL.
 
-**Live URL:** _pending Render redeploy — see [Deploy To Render](#deploy-to-render)_
-**Last verified end-to-end (all 5 checks passing):** 2026-07-12 (on the prior
-Railway deployment; needs re-verification on Render)
+**Live URL:** https://ttb-label-verification-99tf.onrender.com
+**Last run on Render:** 2026-07-27 — 4/5 checks passed on a warm container;
+one flaky run also failed on a cold-started container (see cold-start note
+below). Re-run the script a couple of times if a check fails right after a
+period of inactivity.
+**Last verified end-to-end on the prior Railway deployment (all 5 checks
+passing):** 2026-07-12
 
 macOS/Linux: `.venv/bin/python scripts/live_demo_check.py <live-url>`
 Windows: `.\.venv\Scripts\python.exe scripts\live_demo_check.py <live-url>`
@@ -332,7 +339,7 @@ a `/verify` call either succeeds within one `OPENAI_TIMEOUT_SECONDS` window or
 fails fast with a `502`/`503` instead of silently retrying past the 5-second
 budget.
 
-**After the fix** (2026-07-12, n=25, same live URL, redeployed):
+**After the fix** (2026-07-12, n=25, live Railway URL, redeployed):
 
 | Stat | Value |
 | --- | --- |
@@ -341,8 +348,23 @@ budget.
 | p95 | 3822 ms |
 | max | 3926 ms |
 
-All four stats, including p95 and max, are now comfortably inside the
-5-second target.
+All four stats, including p95 and max, were comfortably inside the 5-second
+target on Railway.
+
+**Re-measured on Render** (2026-07-27, n=25, warm container, live URL above):
+
+| Stat | Value |
+| --- | --- |
+| min | 2294 ms |
+| p50 | 2808 ms |
+| p95 | 3621 ms |
+| max | 3928 ms |
+
+24 of 25 requests succeeded within the target; 1 failed with a `502` — the
+expected `max_retries=0` fail-fast behavior (see [Limitations](#limitations))
+rather than a Render-specific regression. Warm-container latency is
+statistically indistinguishable from the Railway numbers above, so the
+free-tier host swap did not change steady-state performance.
 
 **Cold start:** `app/main.py`'s `lifespan` hook calls
 `OpenAIVisionService.warm_up()` once at process startup (a throwaway
@@ -350,10 +372,11 @@ All four stats, including p95 and max, are now comfortably inside the
 pay for provisioning the model server-side. This absorbs model-warm-up cost,
 but not container-boot cost: on Render's free tier the service spins down
 after ~15 minutes of inactivity, so the first request after idle time still
-pays a full container-restart penalty (well outside the 5-second budget)
-before latency returns to the steady-state numbers above. The measurements
-in this section were taken on the prior always-on Railway deployment, which
-had no spin-down; they represent warm-container latency only.
+pays a full container-restart penalty. Observed in practice on 2026-07-27:
+the first `/verify` after a cold start took 5994 ms wall time (over budget),
+and a couple of the earliest post-idle requests returned `502` before the
+container fully settled. Railway's paid always-on plan had no such spin-down;
+this is a genuine tradeoff of the free-tier host, not a bug.
 
 ## Assumptions
 
