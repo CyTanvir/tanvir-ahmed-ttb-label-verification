@@ -21,7 +21,7 @@ def main() -> int:
     )
     parser.add_argument(
         "base_url",
-        help="Target app URL, such as https://example.up.railway.app.",
+        help="Target app URL, such as https://example.onrender.com.",
     )
     parser.add_argument(
         "--requests",

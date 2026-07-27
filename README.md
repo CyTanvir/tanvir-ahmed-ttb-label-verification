@@ -21,7 +21,11 @@ per-field diffs before approving the label.
 
 ## Live URL
 
-**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
+**Live URL:** _pending Render redeploy — see [Deploy To Render](#deploy-to-render)_
+
+Previously hosted at `https://ttb-label-verification-production-ab6b.up.railway.app`
+on Railway. That trial expired and the account will not be reactivated, so the
+app is being redeployed on Render's free tier instead.
 
 ## Architecture at a Glance
 
@@ -165,7 +169,7 @@ $env:OPENAI_API_KEY="your-key-here"
 - Returns one `VerificationResult` with per-field results and `latency_ms`.
 
 ```bash
-curl -X POST https://ttb-label-verification-production-ab6b.up.railway.app/verify \
+curl -X POST https://<your-render-service>.onrender.com/verify \
   -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
   -F 'label_image=@scripts/sample_label.png;type=image/png'
 ```
@@ -177,7 +181,7 @@ curl -X POST https://ttb-label-verification-production-ab6b.up.railway.app/verif
 - Returns a batch summary plus ordered per-label results.
 
 ```bash
-curl -X POST https://ttb-label-verification-production-ab6b.up.railway.app/verify/batch \
+curl -X POST https://<your-render-service>.onrender.com/verify/batch \
   -F 'application_data={"brand_name":"Example Estate","class_type":"Cabernet Sauvignon","abv":"13.5% alc/vol","net_contents":"750 mL","producer":"Example Wine Co.","country_of_origin":"USA","government_warning":"GOVERNMENT WARNING: (1) According to the Surgeon General, women should not drink alcoholic beverages during pregnancy because of the risk of birth defects. (2) Consumption of alcoholic beverages impairs your ability to drive a car or operate machinery, and may cause health problems."}' \
   -F 'label_images=@label_front.png;type=image/png' \
   -F 'label_images=@label_back.jpg;type=image/jpeg'
@@ -246,28 +250,42 @@ Every field uses one of five match strategies, applied in `app/comparison.py`:
 | `country_of_origin` | `country_synonym` | Normalized and mapped through a synonym table (e.g. `USA`/`US` &rarr; `united states`, `UK`/`GB` &rarr; `united kingdom`) before comparing. |
 | `government_warning` | `exact_case_sensitive` | Whitespace is collapsed on both sides, then compared as an **exact, case-sensitive** string — no fuzzy matching, per the hard requirement. |
 
-## Deploy To Railway
+## Deploy To Render
 
-These commands are identical on macOS/Linux and Windows:
+The app previously ran on Railway. Railway's trial expired (the account will
+not be reactivated), so it now deploys to **Render's free web service tier**
+instead, using the `render.yaml` blueprint at the repo root.
 
-```bash
-npm install -g @railway/cli
-railway login
-railway init --name ttb-label-verification
-railway up
-railway domain
-```
+1. Push this repo to GitHub (Render deploys from a connected Git repo, not a
+   CLI upload).
+2. In the Render dashboard: **New > Blueprint**, connect the repo, and Render
+   will read `render.yaml` and provision the `ttb-label-verification` web
+   service automatically (`pip install -r requirements.txt`, then
+   `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, with `/health` as the
+   health check path).
+3. Set `OPENAI_API_KEY` in the service's **Environment** tab — `render.yaml`
+   marks it `sync: false` so Render prompts for it rather than storing it in
+   the blueprint. Set any optional model-tuning variables (see
+   [Environment](#environment)) the same way if you want non-default values.
+   Do not put real keys in `.env.example`, README examples, source files,
+   tests, or screenshots.
+4. Once deployed, note the assigned `https://<service-name>.onrender.com` URL
+   and update the [Live URL](#live-url) section above.
 
-Set `OPENAI_API_KEY` and any optional model tuning values as Railway environment
-variables before running a live demo. Do not put real keys in `.env.example`,
-README examples, source files, tests, or screenshots.
+**Free-tier tradeoff:** unlike Railway's always-on paid plan, Render's free
+tier spins the service down after ~15 minutes of inactivity. The first
+request after idle time pays a cold-start penalty (container boot + the
+`warm_up()` vision-model call in `app/main.py`'s lifespan hook) before
+returning — expect it to exceed the 5-second `/verify` budget. Subsequent
+requests while the service is warm stay within budget as before.
 
 ## Live Demo Check
 
 After deployment, run the repeatable end-to-end check against the public URL.
 
-**Live URL:** https://ttb-label-verification-production-ab6b.up.railway.app
-**Last verified end-to-end (all 5 checks passing):** 2026-07-12
+**Live URL:** _pending Render redeploy — see [Deploy To Render](#deploy-to-render)_
+**Last verified end-to-end (all 5 checks passing):** 2026-07-12 (on the prior
+Railway deployment; needs re-verification on Render)
 
 macOS/Linux: `.venv/bin/python scripts/live_demo_check.py <live-url>`
 Windows: `.\.venv\Scripts\python.exe scripts\live_demo_check.py <live-url>`
@@ -287,7 +305,7 @@ The script verifies:
 
 Target: single-label `/verify` under 5 seconds wall time.
 
-Measured against the **deployed** Railway URL (not local) with
+Measured against the **deployed** URL (not local) with
 `scripts/benchmark_latency.py`, which sends sequential `/verify` requests using
 `scripts/sample_label.png` and times each one end-to-end:
 
@@ -329,9 +347,13 @@ All four stats, including p95 and max, are now comfortably inside the
 **Cold start:** `app/main.py`'s `lifespan` hook calls
 `OpenAIVisionService.warm_up()` once at process startup (a throwaway
 `responses.create` call) specifically so the first real user request doesn't
-pay for provisioning the model server-side. Railway itself does not spin
-containers down between requests on a paid/always-on plan, so once the container
-is up there is no per-request cold start beyond ordinary latency variance.
+pay for provisioning the model server-side. This absorbs model-warm-up cost,
+but not container-boot cost: on Render's free tier the service spins down
+after ~15 minutes of inactivity, so the first request after idle time still
+pays a full container-restart penalty (well outside the 5-second budget)
+before latency returns to the steady-state numbers above. The measurements
+in this section were taken on the prior always-on Railway deployment, which
+had no spin-down; they represent warm-container latency only.
 
 ## Assumptions
 

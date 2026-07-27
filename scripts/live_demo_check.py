@@ -45,7 +45,7 @@ def main() -> int:
     )
     parser.add_argument(
         "base_url",
-        help="Deployed app URL, such as https://example.up.railway.app.",
+        help="Deployed app URL, such as https://example.onrender.com.",
     )
     parser.add_argument(
         "--image",
