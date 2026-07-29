@@ -1,11 +1,14 @@
 from types import SimpleNamespace
 
+import httpx
 import pytest
+from openai import APITimeoutError
 
 from app.errors import (
     VisionParsingError,
     VisionPreprocessingError,
     VisionServiceConfigurationError,
+    VisionServiceError,
 )
 from app.models import ExtractedLabel
 from app.vision import FakeVisionService, OpenAIVisionService
@@ -170,3 +173,63 @@ def test_openai_service_rejects_invalid_image_detail() -> None:
             client=SimpleNamespace(),
             image_detail="tiny",
         )
+
+
+def _timeout_error() -> APITimeoutError:
+    return APITimeoutError(request=httpx.Request("POST", "https://example.com"))
+
+
+def test_openai_service_retries_once_on_timeout_then_succeeds() -> None:
+    class FlakyResponses:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def parse(self, **request):
+            self.calls += 1
+            if self.calls == 1:
+                raise _timeout_error()
+            return SimpleNamespace(output_parsed=populated_label())
+
+    client = SimpleNamespace(responses=FlakyResponses())
+    service = OpenAIVisionService(api_key="test-key", client=client)
+
+    result = service.extract_label_from_bytes(SAMPLE_PNG_BYTES)
+
+    assert result.brand_name == "Example Estate"
+    assert client.responses.calls == 2
+
+
+def test_openai_service_gives_up_after_one_retry() -> None:
+    class AlwaysTimesOut:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def parse(self, **request):
+            self.calls += 1
+            raise _timeout_error()
+
+    client = SimpleNamespace(responses=AlwaysTimesOut())
+    service = OpenAIVisionService(api_key="test-key", client=client)
+
+    with pytest.raises(VisionServiceError):
+        service.extract_label_from_bytes(SAMPLE_PNG_BYTES)
+
+    assert client.responses.calls == 2
+
+
+def test_openai_service_does_not_retry_non_transient_errors() -> None:
+    class RaisesValueError:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def parse(self, **request):
+            self.calls += 1
+            raise ValueError("bad request")
+
+    client = SimpleNamespace(responses=RaisesValueError())
+    service = OpenAIVisionService(api_key="test-key", client=client)
+
+    with pytest.raises(VisionServiceError):
+        service.extract_label_from_bytes(SAMPLE_PNG_BYTES)
+
+    assert client.responses.calls == 1

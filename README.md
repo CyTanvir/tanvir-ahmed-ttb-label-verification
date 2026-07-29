@@ -366,6 +366,19 @@ rather than a Render-specific regression. Warm-container latency is
 statistically indistinguishable from the Railway numbers above, so the
 free-tier host swap did not change steady-state performance.
 
+**Reliability regression found post-migration, then fixed (2026-07-29):** a
+follow-up 20-request run against the live Render URL saw the `502` rate climb
+to 2/20 (10%) — OpenAI's response time was riding close enough to the
+`OPENAI_TIMEOUT_SECONDS` (4.25s) budget that the zero-retry policy was
+failing real, working requests, not just hanging ones. `app/vision.py` now
+gives a single bounded retry, but only for transient failures (OpenAI SDK's
+`APITimeoutError`, `APIConnectionError`, `RateLimitError`,
+`InternalServerError`) — never for 4xx errors like a bad request, which
+would just fail identically twice. Each attempt still uses the SDK's
+`max_retries=0` client (no silent SDK-level retries), so worst case is
+~2x `OPENAI_TIMEOUT_SECONDS` instead of unbounded backoff, and the common
+case (first attempt succeeds) is unchanged.
+
 **Cold start:** `app/main.py`'s `lifespan` hook calls
 `OpenAIVisionService.warm_up()` once at process startup (a throwaway
 `responses.create` call) specifically so the first real user request doesn't
@@ -401,10 +414,10 @@ this is a genuine tradeoff of the free-tier host, not a bug.
   `/verify` request in that state returns a `503`/`502` rather than degrading.
 - Batch upload is capped at `MAX_BATCH_LABELS` (default 10) images per request,
   with at most `MAX_BATCH_CONCURRENCY` (default 4) extractions running at once.
-- A transient vision-API failure (timeout, rate limit, 5xx) is not retried
-  (`max_retries=0`, see [Performance](#performance)) — it surfaces as a
-  `502`/`503` on `/verify`, or a per-item `ERROR` in `/verify/batch`, rather
-  than quietly succeeding on a second attempt.
+- A transient vision-API failure (timeout, rate limit, 5xx) gets exactly one
+  retry (see [Performance](#performance)); if that retry also fails, or the
+  failure isn't one of those transient types, it surfaces as a `502`/`503` on
+  `/verify`, or a per-item `ERROR` in `/verify/batch`.
 - The `producer` field captures the bottler/producer/importer **name** only.
   TTB labels also require a street address for this field, but it is not
   extracted or compared — a label with a wrong or missing address does not by
@@ -419,7 +432,7 @@ this is a genuine tradeoff of the free-tier host, not a bug.
 | OpenAI vision model instead of a traditional OCR pipeline | Meets the 5-second budget with higher accuracy on varied label layouts, at the cost of a paid external dependency and network reliance. |
 | Stateless, no database | Matches the hard "no persistence" requirement and simplifies the free-tier deploy; means no audit trail of past verifications. |
 | `gpt-4.1-mini` over `gpt-4o-mini` / `gpt-4.1-nano` | See [Model](#model) — chosen for the most reliable verbatim capture of the government warning field within the latency budget. |
-| OpenAI SDK's `max_retries=0` (SDK default is 2) | A retried timeout/429/5xx was the confirmed cause of the p95/max latency tail exceeding 5s (see [Performance](#performance)); trades a slightly higher outright failure rate for a bounded, predictable single-attempt latency, in line with the hard 5-second requirement. |
+| OpenAI SDK's `max_retries=0`, plus one app-level bounded retry on transient errors only | Unbounded SDK retries (default 2) were the confirmed cause of the p95/max latency tail exceeding 5s (see [Performance](#performance)). A raw zero-retry policy then proved too failure-prone in practice on Render (10% `502` rate); one retry limited to timeout/connection/rate-limit/5xx errors recovers most of those without reintroducing unbounded backoff or retrying errors that can't succeed on a second try. |
 
 ## Approach / Tools
 

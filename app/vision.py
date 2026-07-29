@@ -22,6 +22,22 @@ DEFAULT_IMAGE_DETAIL = "low"
 DEFAULT_MAX_OUTPUT_TOKENS = 300
 IMAGE_DETAIL_VALUES = frozenset({"low", "high", "auto", "original"})
 
+try:
+    from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+
+    # Only transient failures where a same-request retry can plausibly
+    # succeed: a timed-out/dropped connection, rate limiting, or a 5xx from
+    # OpenAI. Never retried: 4xx (bad request, auth, etc.) since those fail
+    # identically every time.
+    _RETRYABLE_VISION_EXCEPTIONS: tuple[type[BaseException], ...] = (
+        APITimeoutError,
+        APIConnectionError,
+        RateLimitError,
+        InternalServerError,
+    )
+except ImportError:  # pragma: no cover - openai is a hard dependency
+    _RETRYABLE_VISION_EXCEPTIONS = ()
+
 EXTRACTION_PROMPT = """
 Extract TTB alcohol label fields from this image.
 
@@ -155,13 +171,31 @@ class OpenAIVisionService:
         if self.reasoning_effort:
             request["reasoning"] = {"effort": self.reasoning_effort}
 
-        try:
-            response = self._client.responses.parse(**request)
-        except Exception as exc:  # pragma: no cover - network/API behavior
-            logger.exception("Vision extraction request failed.")
-            raise VisionServiceError("Vision extraction request failed.") from exc
-
+        response = self._call_with_bounded_retry(request)
         return parse_extracted_label_response(response)
+
+    def _call_with_bounded_retry(self, request: dict[str, Any]) -> Any:
+        # One retry, only for transient failures (see _RETRYABLE_VISION_EXCEPTIONS).
+        # Each attempt is still bounded by OPENAI_TIMEOUT_SECONDS via max_retries=0
+        # on the client, so worst case is ~2x the single-attempt budget instead of
+        # failing fast on a single slow/dropped call.
+        attempt = 0
+        while True:
+            attempt += 1
+            try:
+                return self._client.responses.parse(**request)
+            except _RETRYABLE_VISION_EXCEPTIONS as exc:
+                if attempt >= 2:
+                    logger.exception("Vision extraction request failed after retry.")
+                    raise VisionServiceError("Vision extraction request failed.") from exc
+                logger.warning(
+                    "Vision extraction attempt %d failed (%s), retrying once.",
+                    attempt,
+                    exc,
+                )
+            except Exception as exc:  # pragma: no cover - network/API behavior
+                logger.exception("Vision extraction request failed.")
+                raise VisionServiceError("Vision extraction request failed.") from exc
 
     def warm_up(self) -> None:
         """Best-effort: exercise the real responses endpoint for this model
